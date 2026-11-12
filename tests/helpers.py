@@ -18,7 +18,7 @@ Contract (the tests are the spec; the code is written to make them pass):
   bot.gitsync  push_with_rebase(run) with run(cmd_list) -> exit code; raises PushFailed
   bot.runner   Deps(fetch, llm, git); run(now, root, deps, day=None) -> exit code
                deps.fetch(tickers, day, now) -> {ticker: Bar | None}
-               deps.llm(prompt) -> LLMReply;  deps.git.pull_rebase(), deps.git.commit_push(message)
+               deps.llm(prompt) -> LLMReply;  deps.git.commit_push(message)  (pull --rebase on conflict is gitsync's job)
 
 Files under root: config.json, data/history.csv (date,ticker,close), data/snapshots/<D>.csv
   (ticker,close,adj_close,fetch_time,split; fetch_time = datetime.isoformat()), calls/<D>.json,
@@ -88,9 +88,6 @@ class FakeFetch:
 @dataclass
 class FakeGit:
     events: list = field(default_factory=list)
-
-    def pull_rebase(self):
-        self.events.append("pull_rebase")
 
     def commit_push(self, message):
         self.events.append(("commit_push", message))

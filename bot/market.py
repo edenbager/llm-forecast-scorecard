@@ -28,6 +28,13 @@ def is_trading_day(d: date) -> bool:
     return bool(_calendar().is_session(_session(d)))
 
 
+def trading_days(start: date, end: date) -> list[date]:
+    """Every trading day from start to end, both included."""
+    if start > end:
+        return []
+    return [s.date() for s in _calendar().sessions_in_range(_session(start), _session(end))]
+
+
 def next_trading_day(d: date) -> date:
     """The first trading day strictly after d (Friday -> Monday, skipping holidays)."""
     following = _session(d + timedelta(days=1))

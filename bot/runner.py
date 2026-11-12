@@ -1,21 +1,61 @@
-"""The daily run. Only the gate (step 1) exists so far; the rest comes with tests 5-8, 17, 23."""
+"""The daily run. Steps 1-5 of the flow, without scoring yet (that comes with tests 8 and 23)."""
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
-from bot import market
+from bot import market, runlog, store
+from bot.caller import make_call
+from bot.history import base_rate
+from bot.prompt import build_prompt
 
 
 @dataclass
 class Deps:
-    fetch: Callable
-    llm: Callable
-    git: Any
+    fetch: Callable      # (tickers, day, now) -> {ticker: Bar | None}
+    llm: Callable        # (prompt) -> LLMReply
+    git: Any             # .commit_push(message)
 
 
 def run(now: datetime, root: Path, deps: Deps, day=None) -> int:
+    root = Path(root)
     day = day or now.date()
     if not market.is_trading_day(day):
-        return 0                       # step 1, gate: not a trading day, write nothing
-    raise NotImplementedError("steps 2-6 are not written yet")
+        return 0                                   # step 1, gate: write nothing
+    _process_day(now, root, deps, day)
+    deps.git.commit_push(f"bot run {day.isoformat()}")   # step 6 (conflict retry lives in gitsync)
+    return 0
+
+
+def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
+    config = json.loads((root / "config.json").read_text())
+    runlog.backfill(root, day)                     # step 2
+
+    if store.call_path(root, day).exists():
+        return                                     # write-once: touch nothing, make no call
+    if now > market.next_open_utc(day):
+        runlog.add(root, day, "late")              # D+1 already opened: a call would be a leak
+        return
+
+    bars = deps.fetch(config["tickers"], day, now)           # step 4
+    store.write_snapshot(root, day, bars)
+    for ticker, bar in bars.items():
+        if bar is None:
+            runlog.add(root, day, "no data", ticker)
+    tickers = [t for t in config["tickers"] if bars.get(t) is not None]
+    if not tickers:
+        return                                     # nothing to ask the LLM about
+
+    history = store.load_history(root)                       # step 5
+    prompt = build_prompt(history, tickers, day, config["prompt_version"])
+    outcome = make_call(prompt, deps.llm, tickers)
+    last = outcome.replies[-1]
+    runlog.add(root, day, outcome.status)
+    store.write_call(root, day, {
+        "day": day.isoformat(), "status": outcome.status, "prompt": prompt,
+        "prompt_version": config["prompt_version"], "model": last.model,
+        "response_id": last.response_id, "raw_output": last.text,
+        "called_at": now.isoformat(), "p_up": outcome.p_up,
+        "base_rate": {t: base_rate(history[t], day) for t in tickers},
+    })
