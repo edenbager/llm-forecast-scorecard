@@ -60,7 +60,7 @@ def load_rows(root: Path, calls: dict[str, dict] | None = None) -> list[ReportRo
 def build_report(root: Path) -> str:
     calls = load_calls(root)
     rows = load_rows(root, calls)
-    counts = Counter(r["status"] for r in runlog.read(root))
+    counts = _log_counts(runlog.read(root))
     called = sorted({record.get("prompt_version", "?") for record in calls.values()})
     lines = ["# Prediction-scoring report", "", FIXED_LINE, "",
              "Log counts (all versions): " + ", ".join(f"{s} {counts[s]}" for s in LOG_STATUSES),
@@ -76,6 +76,16 @@ def build_report(root: Path) -> str:
     for version in sorted(by_version):
         lines += _section(version, by_version[version], summary[version])
     return "\n".join(lines) + "\n"
+
+
+def _log_counts(log_rows: list[dict]) -> Counter:
+    """A day counts once, by its LAST day-level status (a day 'budget'-blocked and called later is 'ok').
+    Ticker-level rows ('no data', 'split') each count."""
+    last_by_day = {}
+    for row in log_rows:                      # log order is time order
+        if not row["ticker"]:
+            last_by_day[row["day"]] = row["status"]
+    return Counter(last_by_day.values()) + Counter(row["status"] for row in log_rows if row["ticker"])
 
 
 def _latest_day(root: Path) -> date:

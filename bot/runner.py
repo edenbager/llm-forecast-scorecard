@@ -32,8 +32,12 @@ def run(now: datetime, root: Path, deps: Deps, day=None) -> int:
     day = day or now.astimezone(NEW_YORK).date()
     if not market.is_trading_day(day):
         return 0                                   # step 1, gate: write nothing
-    _process_day(now, root, deps, day)
-    deps.git.commit_push(f"bot run {day.isoformat()}")   # step 6 (conflict retry lives in gitsync)
+    try:
+        _process_day(now, root, deps, day)
+    finally:
+        # Step 6 runs even when the day failed: a paid call must reach the ledger in the repo, because
+        # the CI machine is thrown away. (Conflict retry lives in gitsync; no change means no commit.)
+        deps.git.commit_push(f"bot run {day.isoformat()}")
     return 0
 
 
@@ -58,6 +62,7 @@ def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
         return                                     # write-once: touch nothing, make no call
     if now > market.next_open_utc(day):
         runlog.add(root, day, "late")              # D+1 already opened: a call would be a leak
+        _write_report_safely(root)
         return
 
     bars = deps.fetch(config["tickers"], day, now)           # step 4
@@ -78,9 +83,10 @@ def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
     prompt = build_prompt(history, tickers, day, config["prompt_version"])
     if not budget.allows_call(root, day, config["model"], prompt):
         runlog.add(root, day, "budget")            # no call, no call file: a re-run may still call later
+        _write_report_safely(root)
         return
-    outcome = make_call(prompt, deps.llm, tickers)
-    budget.record(root, day, config["prompt_version"], config["model"], outcome.replies)
+    outcome = make_call(prompt, deps.llm, tickers, on_reply=lambda reply: budget.record(
+        root, day, config["prompt_version"], config["model"], [reply]))
     last = outcome.replies[-1]
     runlog.add(root, day, outcome.status)
     store.write_call(root, day, {

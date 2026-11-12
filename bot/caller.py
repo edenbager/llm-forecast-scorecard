@@ -16,11 +16,16 @@ class CallOutcome:
     replies: list[LLMReply]          # every reply received, for the stored record
 
 
-def make_call(prompt: str, llm: Callable[[str, list[str]], LLMReply], tickers: list[str]) -> CallOutcome:
+def make_call(prompt: str, llm: Callable[[str, list[str]], LLMReply], tickers: list[str],
+              on_reply: Callable[[LLMReply], None] | None = None) -> CallOutcome:
+    """`on_reply` sees each reply the moment it arrives, before it is parsed. The runner uses it to
+    ledger the spend at once, so a later failure can never lose a paid reply."""
     replies: list[LLMReply] = []
     for _ in range(MAX_TRIES):
         reply = llm(prompt, tickers)
         replies.append(reply)
+        if on_reply:
+            on_reply(reply)
         if reply.stop_reason in NEVER_READ:
             return CallOutcome("invalid", None, replies)   # a retry would likely fail the same way
         try:
