@@ -18,13 +18,28 @@ def brier(rows: list[Row]) -> float:
 
 
 def bootstrap_interval(values: list[float], n_boot: int = 10_000, seed: int | None = None,
-                       confidence: float = 0.95) -> tuple[float, float]:
-    """Resample the values (one per day) with replacement n_boot times and take the middle
-    `confidence` share of the resampled means. Shows how much the average wobbles."""
+                       confidence: float = 0.95, mean_block: float = 5) -> tuple[float, float]:
+    """Interval for the average of per-day values, by the STATIONARY bootstrap (Politis & Romano, 1994).
+
+    Each resample is built from runs of consecutive days: after every pick, with chance 1/mean_block it
+    jumps to a random day, otherwise it takes the next day (wrapping around). Days that follow each other
+    tend to resemble each other, and resampling single days would hide that and give an interval that is
+    too narrow. mean_block=1 gives back the plain one-day-at-a-time bootstrap. The default of 5 is about
+    one trading week (my choice, not tuned). Then it takes the middle `confidence` share of the means."""
     if not values:
         raise ValueError("no values to resample")
+    if mean_block < 1:
+        raise ValueError("mean_block must be at least 1")
     rng = random.Random(seed)
-    means = sorted(sum(rng.choices(values, k=len(values))) / len(values) for _ in range(n_boot))
+    n, restart = len(values), 1 / mean_block
+    means = []
+    for _ in range(n_boot):
+        total, i = 0.0, rng.randrange(n)
+        for _ in range(n):
+            total += values[i]
+            i = rng.randrange(n) if rng.random() < restart else (i + 1) % n
+        means.append(total / n)
+    means.sort()
     tail = (1 - confidence) / 2
     return means[int(tail * (n_boot - 1))], means[int((1 - tail) * (n_boot - 1))]
 

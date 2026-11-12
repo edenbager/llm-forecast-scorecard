@@ -28,4 +28,5 @@ global rules "Never assume: ask" and plan mode already cover it.
   decision: say so in the reply.
 - Run all tests: `.venv/bin/python -W ignore -m unittest discover -s tests -t .`
 - Packages: `yfinance`, `exchange_calendars`, `anthropic` only. Ask before adding any.
+- Research first: before building or changing a part, read the best primary source for it (official docs, the library's own source, a paper) and say what was checked. A summary or snippet counts as partial.
 - Design: `docs/design-v3.md`. A change that departs from it is listed as a decision in the reply.

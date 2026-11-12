@@ -10,6 +10,7 @@ from bot.stats import Row, bootstrap_interval, brier, calibration, hit_rate
 
 FIXED_LINE = "4 weeks = pipeline check, not proof. A 5-point edge likely needs 1+ year."
 LOG_STATUSES = ["ok", "invalid", "no data", "no run", "late", "split", "budget"]   # every status runlog writes
+MIN_DAYS_FOR_INTERVAL = 20    # about 4 weeks of trading days; fewer days give a range that only looks precise
 N_BOOT = 10_000
 BOOT_SEED = 0          # fixed, so the same data always gives the same report bytes
 
@@ -124,10 +125,11 @@ def _main_result(llm_by_day: dict[str, list[Row]], base_by_day: dict[str, list[R
     days = sorted(llm_by_day)
     diffs = [brier(llm_by_day[day]) - brier(base_by_day[day]) for day in days]
     mean = sum(diffs) / len(diffs)
-    if len(days) < 2:
-        return f"mean per-day (LLM Brier - base_rate Brier) {mean:+.3f}; interval needs 2+ days"
+    if len(days) < MIN_DAYS_FOR_INTERVAL:      # like the calibration buckets: too few to show a precise-looking range
+        return (f"mean per-day (LLM Brier - base_rate Brier) {mean:+.3f}; "
+                f"interval needs {MIN_DAYS_FOR_INTERVAL}+ days")
     low, high = bootstrap_interval(diffs, n_boot=N_BOOT, seed=BOOT_SEED)
-    return (f"mean per-day (LLM Brier - base_rate Brier) {mean:+.3f}, 95% bootstrap interval "
+    return (f"mean per-day (LLM Brier - base_rate Brier) {mean:+.3f}, 95% stationary-bootstrap interval "
             f"[{low:+.3f}, {high:+.3f}] over {len(days)} days")
 
 

@@ -49,7 +49,7 @@ class ReportFile(unittest.TestCase):
         self.assertIn("base_rate 0.250", text)
         self.assertIn("always 0.5: 0.250", text)
         self.assertIn("+0.090", text)                             # mean of (-0.21, +0.39)
-        self.assertIn("95%", text)
+        self.assertIn("interval needs 20+ days", text)            # 2 days is too few to show an interval
         self.assertIn("hidden", text)                             # every calibration bucket has n < 30
 
     def test_two_versions_get_two_sections(self):
@@ -75,7 +75,15 @@ class ReportFile(unittest.TestCase):
     def test_one_scored_day_has_no_interval_and_says_so(self):
         with tempfile.TemporaryDirectory() as tmp:
             text = build_report(_project(tmp, TWO_DAYS[:1]))
-        self.assertIn("interval needs 2+ days", text)
+        self.assertIn("interval needs 20+ days", text)
+
+    def test_with_20_scored_days_the_interval_is_shown(self):
+        rows = [(f"2026-10-{i + 1:02d}", "v1", "AAPL", 0.6 if i % 2 else 0.4, "up" if i % 3 else "down", 0.5)
+                for i in range(20)]
+        with tempfile.TemporaryDirectory() as tmp:
+            text = build_report(_project(tmp, rows))
+        self.assertIn("n_days: 20", text)
+        self.assertIn("95% stationary-bootstrap interval", text)
 
     def test_a_scored_day_without_its_call_file_is_a_clear_error(self):
         with tempfile.TemporaryDirectory() as tmp:
