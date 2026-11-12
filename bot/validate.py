@@ -12,15 +12,18 @@ _FENCE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
 
 
 def parse_and_validate(text: str, tickers: list[str]) -> dict[str, float]:
-    """Return {ticker: p_up} for exactly the given tickers, once each, p_up a number in [0, 1]."""
+    """Return {ticker: p_up} for exactly the given tickers, once each, p_up a number in [0, 1].
+    Accepts {"AAPL": 0.6, ...} or [{"ticker": "AAPL", "p_up": 0.6}, ...], plain or in a ``` fence."""
     fenced = _FENCE.search(text)
     body = fenced.group(1) if fenced else text.strip()
     try:
         items = json.loads(body)
     except json.JSONDecodeError as err:
         raise InvalidCall(f"not JSON: {err}") from err
+    if isinstance(items, dict):        # the form the API schema produces: {"AAPL": 0.6, ...}
+        items = [{"ticker": ticker, "p_up": p_up} for ticker, p_up in items.items()]
     if not isinstance(items, list):
-        raise InvalidCall("expected a JSON list")
+        raise InvalidCall("expected a JSON object or list")
 
     result: dict[str, float] = {}
     for item in items:

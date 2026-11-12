@@ -19,7 +19,7 @@ NEW_YORK = ZoneInfo("America/New_York")
 @dataclass
 class Deps:
     fetch: Callable      # (tickers, day, now) -> {ticker: Bar | None}
-    llm: Callable        # (prompt) -> LLMReply
+    llm: Callable        # (prompt, tickers) -> LLMReply
     git: Any             # .commit_push(message)
 
 

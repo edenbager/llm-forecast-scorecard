@@ -18,7 +18,7 @@ Contract (the tests are the spec; the code is written to make them pass):
   bot.gitsync  push_with_rebase(run) with run(cmd_list) -> exit code; raises PushFailed
   bot.runner   Deps(fetch, llm, git); run(now, root, deps, day=None) -> exit code
                deps.fetch(tickers, day, now) -> {ticker: Bar | None}
-               deps.llm(prompt) -> LLMReply;  deps.git.commit_push(message)  (pull --rebase on conflict is gitsync's job)
+               deps.llm(prompt, tickers) -> LLMReply (tickers = the ones asked about today, for the output schema);  deps.git.commit_push(message)  (pull --rebase on conflict is gitsync's job)
 
 Files under root: config.json, data/history.csv (date,ticker,close), data/snapshots/<D>.csv
   (ticker,close,adj_close,fetch_time,split; fetch_time = datetime.isoformat()), calls/<D>.json,
@@ -56,14 +56,15 @@ def close_for(ticker, add=0.0):
 
 # ---------- fakes ----------
 class FakeLLM:
-    def __init__(self, replies=None):
+    def __init__(self, replies=None, stop_reason="end_turn"):
         self.replies = list(replies or [])
+        self.stop_reason = stop_reason
         self.prompts = []
 
-    def __call__(self, prompt):
+    def __call__(self, prompt, tickers=None):
         self.prompts.append(prompt)
         text = self.replies.pop(0) if self.replies else good_reply()
-        return LLMReply(text=text, stop_reason="end_turn",
+        return LLMReply(text=text, stop_reason=self.stop_reason,
                         response_id=f"msg_{len(self.prompts)}", model="claude-haiku-5-5")
 
 
