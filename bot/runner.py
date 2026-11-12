@@ -1,4 +1,4 @@
-"""The daily run. Steps 1-5 of the flow, without scoring yet (that comes with tests 8 and 23)."""
+"""The daily run: gate, backfill, score yesterday's call, fetch, call, store, commit."""
 import json
 from dataclasses import dataclass
 from datetime import datetime
@@ -9,6 +9,7 @@ from bot import market, runlog, store
 from bot.caller import make_call
 from bot.history import base_rate
 from bot.prompt import build_prompt
+from bot.score import score_day
 
 
 @dataclass
@@ -28,6 +29,19 @@ def run(now: datetime, root: Path, deps: Deps, day=None) -> int:
     return 0
 
 
+def _score_previous_day(root: Path, day, bars_today: dict) -> None:
+    """Score the call made on the previous trading day: its D is that day, today is D+1."""
+    prev = market.previous_trading_day(day)
+    path = store.call_path(root, prev)
+    if not path.exists():
+        return
+    record = json.loads(path.read_text())
+    if not record.get("p_up"):                     # an invalid call has nothing to score
+        return
+    rows = score_day(record["p_up"], store.load_snapshot(root, prev), bars_today)
+    store.add_scores(root, prev, record["prompt_version"], rows)
+
+
 def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
     config = json.loads((root / "config.json").read_text())
     runlog.backfill(root, day)                     # step 2
@@ -43,6 +57,9 @@ def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
     for ticker, bar in bars.items():
         if bar is None:
             runlog.add(root, day, "no data", ticker)
+        elif bar.split:
+            runlog.add(root, day, "split", ticker)   # noted only; history is never rewritten
+    _score_previous_day(root, day, bars)                     # step 3
     tickers = [t for t in config["tickers"] if bars.get(t) is not None]
     if not tickers:
         return                                     # nothing to ask the LLM about

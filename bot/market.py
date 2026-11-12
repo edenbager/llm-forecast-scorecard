@@ -41,6 +41,12 @@ def next_trading_day(d: date) -> date:
     return _calendar().date_to_session(following, direction="next").date()
 
 
+def previous_trading_day(d: date) -> date:
+    """The last trading day strictly before d."""
+    before = _session(d - timedelta(days=1))
+    return _calendar().date_to_session(before, direction="previous").date()
+
+
 def next_open_utc(d: date) -> datetime:
     """UTC time the market opens on D+1, taken from the calendar."""
     return _calendar().session_open(_session(next_trading_day(d))).to_pydatetime()
