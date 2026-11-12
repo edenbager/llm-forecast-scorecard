@@ -27,6 +27,8 @@ def parse_and_validate(text: str, tickers: list[str]) -> dict[str, float]:
         if not isinstance(item, dict) or "ticker" not in item or "p_up" not in item:
             raise InvalidCall(f"bad item: {item!r}")
         ticker, p_up = item["ticker"], item["p_up"]
+        if not isinstance(ticker, str):
+            raise InvalidCall(f"ticker is not text: {ticker!r}")
         if ticker in result:
             raise InvalidCall(f"duplicate ticker {ticker!r}")
         # bool is a number in Python (True == 1), and "0.6" is a string: both are rejected.

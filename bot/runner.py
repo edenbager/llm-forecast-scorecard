@@ -4,12 +4,16 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
+from zoneinfo import ZoneInfo
 
 from bot import market, runlog, store
 from bot.caller import make_call
 from bot.history import base_rate
 from bot.prompt import build_prompt
 from bot.score import score_day
+
+
+NEW_YORK = ZoneInfo("America/New_York")
 
 
 @dataclass
@@ -21,7 +25,10 @@ class Deps:
 
 def run(now: datetime, root: Path, deps: Deps, day=None) -> int:
     root = Path(root)
-    day = day or now.date()
+    if now.tzinfo is None:
+        raise ValueError("now must be timezone-aware (UTC)")
+    # D is the New York calendar date: a run delayed past 00:00 UTC still belongs to the same trading day.
+    day = day or now.astimezone(NEW_YORK).date()
     if not market.is_trading_day(day):
         return 0                                   # step 1, gate: write nothing
     _process_day(now, root, deps, day)
@@ -65,6 +72,8 @@ def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
         return                                     # nothing to ask the LLM about
 
     history = store.load_history(root)                       # step 5
+    # Baselines first: if one cannot be computed the run fails loud BEFORE the paid LLM call.
+    base_rates = {t: base_rate(history[t], day) for t in tickers}
     prompt = build_prompt(history, tickers, day, config["prompt_version"])
     outcome = make_call(prompt, deps.llm, tickers)
     last = outcome.replies[-1]
@@ -74,5 +83,5 @@ def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
         "prompt_version": config["prompt_version"], "model": last.model,
         "response_id": last.response_id, "raw_output": last.text,
         "called_at": now.isoformat(), "p_up": outcome.p_up,
-        "base_rate": {t: base_rate(history[t], day) for t in tickers},
+        "base_rate": base_rates,
     })
