@@ -1,0 +1,31 @@
+name: daily-run
+
+on:
+  schedule:
+    - cron: "30 22 * * 1-5"      # 22:30 UTC Mon-Fri, after the US close in summer and winter
+  workflow_dispatch: {}           # manual run for testing; before the close it fails loudly on purpose
+
+concurrency:
+  group: daily-run                # one run at a time, so two runs never write the same day
+  cancel-in-progress: false
+
+permissions:
+  contents: write                 # the run commits its own results back to the repo
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: |
+          git config user.name "trading-bot"
+          git config user.email "trading-bot@users.noreply.github.com"
+      - run: python -m bot
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # the key lives only in the repo secret

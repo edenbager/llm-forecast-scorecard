@@ -33,10 +33,12 @@ def reply_schema(tickers: list[str]) -> dict:
 def make_llm(model: str, client=None, max_tokens: int = MAX_TOKENS) -> Callable[[str, list[str]], LLMReply]:
     """Returns llm(prompt, tickers) -> LLMReply. The key comes from the ANTHROPIC_API_KEY environment
     variable (an Actions secret), never from the code. No temperature: newer models reject it."""
-    client = client or anthropic.Anthropic()
+    made = {"client": client}      # built on the first call, so a weekend gate-exit needs no key
 
     def llm(prompt: str, tickers: list[str]) -> LLMReply:
-        response = client.messages.create(
+        if made["client"] is None:
+            made["client"] = anthropic.Anthropic()
+        response = made["client"].messages.create(
             model=model,
             max_tokens=max_tokens,
             output_config={"effort": "low",
