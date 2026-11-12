@@ -60,19 +60,21 @@ def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
 
     if store.call_path(root, day).exists():
         return                                     # write-once: touch nothing, make no call
-    if now > market.next_open_utc(day):
-        runlog.add(root, day, "late")              # D+1 already opened: a call would be a leak
-        _write_report_safely(root)
-        return
 
+    # Fetch and score first, even on a late day: day D's final close is still there, and yesterday's
+    # call can be graded at any time. Only the NEW call is forbidden once D+1 has opened.
     bars = deps.fetch(config["tickers"], day, now)           # step 4
     store.write_snapshot(root, day, bars)
     for ticker, bar in bars.items():
         if bar is None:
             runlog.add(root, day, "no data", ticker)
         elif bar.split:
-            runlog.add(root, day, "split", ticker)   # noted only; history is never rewritten
+            runlog.add(root, day, "split", ticker)   # noted; the ticker is left out of scoring
     _score_previous_day(root, day, bars)                     # step 3
+    if now > market.next_open_utc(day):
+        runlog.add(root, day, "late")              # D+1 already opened: a call would be a leak
+        _write_report_safely(root)
+        return
     tickers = [t for t in config["tickers"] if bars.get(t) is not None]
     if not tickers:
         return                                     # nothing to ask the LLM about

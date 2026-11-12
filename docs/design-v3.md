@@ -128,3 +128,11 @@ Facts from the claude-api skill (cached 3.11.2026). Costs are likely, at ~3K inp
 2. Repo: private (Claude's recommendation, no objection). Secrets are safe either way; private hides the API bill
    history. The daily commit keeps the schedule alive.
 3. Packages: `yfinance`, `exchange_calendars`, `anthropic`. Eden approved the install, in a project venv, once coding starts.
+
+Decided later on 12.11.2026 (Eden chose, or Claude built and listed it in the reply):
+4. Tickers: top 10 companies, not 10 holdings. GOOG skipped (second Alphabet class), BRK-B takes rank 10. Day 0 = 2026-11-11.
+5. Split on D+1: that ticker is left out of that day's scoring (its two Close prices are on different scales). The split is logged.
+6. Late day: no new call, but the day is still fetched and yesterday's call is still scored.
+7. Spending guard (`bot/budget.py`): `usage.csv` ledger, monthly budget from `BOT_MONTHLY_BUDGET_USD` (default 0.25, 0 = pause the LLM). The hard stop is prepaid credits with auto-reload off in the Anthropic Console.
+8. LLM answer format: an object `{ticker: p_up}` (strict schema) instead of a list; prompt shows closes only, with `|` where a trading day is missing.
+9. `report.md` is rewritten on every run that does real work, not only weekly.
