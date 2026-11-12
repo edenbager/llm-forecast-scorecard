@@ -3,7 +3,7 @@
 Contract (the tests are the spec; the code is written to make them pass):
   bot.market   is_trading_day(d), next_trading_day(d), next_open_utc(d), session_close_utc(d)
   bot.fetch    Bar(close, adj_close, fetch_time, split=0.0); PartialBarError;
-               fetch_bars(tickers, day, now, download, sleep, retries=3) -> {ticker: Bar | None}
+               fetch_bars(tickers, day, now, download, sleep, attempts=3) -> {ticker: Bar | None}
   bot.llm      LLMReply(text, stop_reason, response_id, model)
   bot.validate parse_and_validate(text, tickers) -> {ticker: float}; raises InvalidCall
   bot.caller   make_call(prompt, llm, tickers) -> CallOutcome(status "ok"|"invalid", p_up, replies)

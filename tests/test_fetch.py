@@ -5,7 +5,7 @@ from pathlib import Path
 
 from bot.fetch import Bar, PartialBarError, fetch_bars
 from bot.runner import Deps, run
-from tests.helpers import (TICKERS, FakeFetch, FakeGit, FakeLLM, d, make_project,
+from tests.helpers import (TICKERS, FakeFetch, FakeGit, FakeLLM, d, good_reply, make_project,
                            read_log, utc)
 
 DAY = d("2026-11-13")                       # a Friday; close is 21:00 UTC
@@ -41,7 +41,8 @@ class Fetch(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:             # and the full run
             root = make_project(Path(tmp) / "p")
-            deps = Deps(fetch=FakeFetch(missing=["MSFT"]), llm=FakeLLM(), git=FakeGit())
+            nine = [t for t in TICKERS if t != "MSFT"]
+            deps = Deps(fetch=FakeFetch(missing=["MSFT"]), llm=FakeLLM([good_reply(nine)]), git=FakeGit())
             run(utc("2026-11-10T22:30:00"), root, deps)
             self.assertEqual(len(deps.llm.prompts), 1)         # the LLM was still asked
             self.assertNotIn("MSFT", deps.llm.prompts[0])      # but only about the 9 with data
