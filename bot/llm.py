@@ -4,12 +4,14 @@ Goal: cheap and smart. Cost design: the small Haiku model, effort "low" (least h
 thinking), a ~2000 token cap for a ~100 token answer, and a strict schema so the answer is rarely
 invalid (an invalid answer means a paid retry).
 """
+import functools
 from dataclasses import dataclass
 from typing import Callable
 
 import anthropic
 
 MAX_TOKENS = 2000
+CLIENT_RETRIES = 4
 
 
 @dataclass(frozen=True)
@@ -33,12 +35,13 @@ def reply_schema(tickers: list[str]) -> dict:
 def make_llm(model: str, client=None, max_tokens: int = MAX_TOKENS) -> Callable[[str, list[str]], LLMReply]:
     """Returns llm(prompt, tickers) -> LLMReply. The key comes from the ANTHROPIC_API_KEY environment
     variable (an Actions secret), never from the code. No temperature: newer models reject it."""
-    made = {"client": client}      # built on the first call, so a weekend gate-exit needs no key
+    # Built once, on the first call, so a weekend gate-exit needs no key. Extra SDK retries (the
+    # default is 2) cover short overloads, because the job runs only once a day.
+    get_client = (lambda: client) if client is not None else functools.cache(
+        lambda: anthropic.Anthropic(max_retries=CLIENT_RETRIES))
 
     def llm(prompt: str, tickers: list[str]) -> LLMReply:
-        if made["client"] is None:
-            made["client"] = anthropic.Anthropic()
-        response = made["client"].messages.create(
+        response = get_client().messages.create(
             model=model,
             max_tokens=max_tokens,
             output_config={"effort": "low",

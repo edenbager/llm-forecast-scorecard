@@ -6,7 +6,7 @@ from bot.llm import LLMReply
 from bot.validate import InvalidCall, parse_and_validate
 
 MAX_TRIES = 2          # the first try plus exactly one retry
-NEVER_READ = {"refusal", "max_tokens"}    # content of these replies is not trusted or parsed
+NEVER_READ = {"refusal", "max_tokens"}    # these replies are stored for the record but never parsed
 
 
 @dataclass

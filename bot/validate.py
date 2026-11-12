@@ -11,13 +11,21 @@ class InvalidCall(Exception):
 _FENCE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
 
 
+def _no_repeated_keys(pairs):
+    # json.loads keeps only the last value of a repeated key; a repeated ticker must be invalid instead.
+    keys = [key for key, _ in pairs]
+    if len(keys) != len(set(keys)):
+        raise InvalidCall(f"repeated key in a JSON object: {sorted(k for k in set(keys) if keys.count(k) > 1)}")
+    return dict(pairs)
+
+
 def parse_and_validate(text: str, tickers: list[str]) -> dict[str, float]:
     """Return {ticker: p_up} for exactly the given tickers, once each, p_up a number in [0, 1].
     Accepts {"AAPL": 0.6, ...} or [{"ticker": "AAPL", "p_up": 0.6}, ...], plain or in a ``` fence."""
     fenced = _FENCE.search(text)
     body = fenced.group(1) if fenced else text.strip()
     try:
-        items = json.loads(body)
+        items = json.loads(body, object_pairs_hook=_no_repeated_keys)
     except json.JSONDecodeError as err:
         raise InvalidCall(f"not JSON: {err}") from err
     if isinstance(items, dict):        # the form the API schema produces: {"AAPL": 0.6, ...}

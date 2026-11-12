@@ -23,6 +23,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -t .      # offline tests; a broken change stops the run
       - run: |
           git config user.name "trading-bot"
           git config user.email "trading-bot@users.noreply.github.com"

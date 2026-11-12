@@ -3,13 +3,13 @@ import csv
 import json
 import tempfile
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
 
 from bot import store
-from bot.init_day0 import DAY0_TICKERS, build_config, write_day0
+from bot.init_day0 import DAY0_TICKERS, build_config, check_day_closed, write_day0
 from bot.yahoo import closes_from_frame
 
 
@@ -21,8 +21,9 @@ def _frame(rows):
     return pd.DataFrame(data, index=index)
 
 
-def _closes(n):
-    return [(date(2025, 11, 11) + timedelta(days=i), 100.0 + i) for i in range(n)]
+def _closes(n, last=date(2026, 11, 11)):
+    """n consecutive daily closes ending on `last` (day 0 by default)."""
+    return [(last - timedelta(days=n - 1 - i), 100.0 + i) for i in range(n)]
 
 
 class Day0(unittest.TestCase):
@@ -68,6 +69,17 @@ class Day0(unittest.TestCase):
             with self.assertRaises(ValueError):
                 write_day0(Path(tmp), build_config(date(2026, 11, 11)), closes)
             self.assertEqual(list(Path(tmp).iterdir()), [])
+
+
+    def test_history_must_end_on_day0_and_day0_must_be_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stale = {t: _closes(30, last=date(2026, 11, 10)) for t in DAY0_TICKERS}   # one day short
+            with self.assertRaises(ValueError):
+                write_day0(Path(tmp), build_config(date(2026, 11, 11)), stale)
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+        with self.assertRaises(ValueError):                       # 11 Nov closes at 21:00 UTC
+            check_day_closed(date(2026, 11, 11), datetime(2026, 11, 11, 18, 0, tzinfo=timezone.utc))
+        check_day_closed(date(2026, 11, 11), datetime(2026, 11, 11, 21, 5, tzinfo=timezone.utc))
 
 
 if __name__ == "__main__":

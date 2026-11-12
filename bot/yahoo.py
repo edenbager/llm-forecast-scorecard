@@ -7,6 +7,18 @@ import yfinance as yf
 from bot.fetch import Bar
 
 
+class NoDataError(Exception):
+    pass
+
+
+def ensure_some_data(bars: dict[str, Bar | None]) -> dict[str, Bar | None]:
+    """yfinance often answers a rate limit or network error with an EMPTY table instead of an error.
+    No data for every ticker is never real on a trading day, so raise: fetch_bars then retries it."""
+    if all(bar is None for bar in bars.values()):
+        raise NoDataError("Yahoo returned no data for any ticker")
+    return bars
+
+
 def bars_from_frame(frame: pd.DataFrame, tickers: list[str], day: date,
                     fetch_time: datetime) -> dict[str, Bar | None]:
     """Pick each ticker's row for `day` out of a yfinance table (columns = (ticker, field)).
@@ -54,5 +66,5 @@ def make_download(day: date, fetch_time: datetime):
     def download(tickers: list[str]) -> dict[str, Bar | None]:
         frame = yf.download(tickers, start=day, end=day + timedelta(days=1), auto_adjust=False,
                             actions=True, progress=False, group_by="ticker", threads=False)
-        return bars_from_frame(frame, tickers, day, fetch_time)
+        return ensure_some_data(bars_from_frame(frame, tickers, day, fetch_time))
     return download

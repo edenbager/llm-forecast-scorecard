@@ -8,7 +8,7 @@ import argparse
 import csv
 import io
 import json
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from bot import market, store, yahoo
@@ -29,11 +29,21 @@ def build_config(day0: date, model: str = "claude-haiku-5-5", prompt_version: st
             "day0": day0.isoformat(), "weights_source": WEIGHTS_SOURCE, "weights_as_of": WEIGHTS_AS_OF}
 
 
+def check_day_closed(day0: date, now: datetime) -> None:
+    """A bar fetched before the close is a live price, and day 0 is frozen for good."""
+    if now < market.session_close_utc(day0):
+        raise ValueError(f"{day0} has not closed yet (closes {market.session_close_utc(day0).isoformat()})")
+
+
 def write_day0(root: Path, config: dict, closes: dict[str, list[tuple[date, float]]]) -> None:
     root = Path(root)
     short = [t for t in config["tickers"] if len(closes.get(t, [])) < MIN_CLOSES]
     if short:
         raise ValueError(f"too few closes (need {MIN_CLOSES}) for: {short}")
+    day0 = date.fromisoformat(config["day0"])
+    stale = [t for t in config["tickers"] if max(when for when, _ in closes[t]) != day0]
+    if stale:                                  # the file is write-once: a short history would stay
+        raise ValueError(f"history does not end on day 0 ({day0}) for: {stale}")
     config_path, history_path = root / "config.json", root / "data" / "history.csv"
     for path in (config_path, history_path):
         if path.exists():
@@ -54,6 +64,10 @@ def main() -> int:
     args = parser.parse_args()
     if not market.is_trading_day(args.day0):
         parser.error(f"{args.day0} is not a trading day")
+    try:
+        check_day_closed(args.day0, datetime.now(timezone.utc))
+    except ValueError as err:
+        parser.error(str(err))
     write_day0(Path.cwd(), build_config(args.day0), yahoo.download_year(DAY0_TICKERS, args.day0))
     return 0
 
