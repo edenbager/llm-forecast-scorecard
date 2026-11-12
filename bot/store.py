@@ -26,7 +26,7 @@ def load_history(root: Path) -> dict[str, list[tuple[date, float]]]:
     return {ticker: sorted(by_date.items()) for ticker, by_date in closes.items()}
 
 
-def _write_atomic(path: Path, text: str) -> None:
+def write_atomic(path: Path, text: str) -> None:
     """Create missing folders, write a temp file, then rename it: a crash never leaves half a file."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_name(path.name + ".tmp")
@@ -42,7 +42,7 @@ def write_snapshot(root: Path, day: date, bars: dict[str, Bar | None]) -> None:
     for ticker, bar in bars.items():
         if bar is not None:
             writer.writerow([ticker, bar.close, bar.adj_close, bar.fetch_time.isoformat(), bar.split])
-    _write_atomic(Path(root) / "data" / "snapshots" / f"{day.isoformat()}.csv", out.getvalue())
+    write_atomic(Path(root) / "data" / "snapshots" / f"{day.isoformat()}.csv", out.getvalue())
 
 
 def load_snapshot(root: Path, day: date) -> dict[str, Bar]:
@@ -89,4 +89,4 @@ def call_path(root: Path, day: date) -> Path:
 
 
 def write_call(root: Path, day: date, record: dict) -> None:
-    _write_atomic(call_path(root, day), json.dumps(record, indent=2))
+    write_atomic(call_path(root, day), json.dumps(record, indent=2))
