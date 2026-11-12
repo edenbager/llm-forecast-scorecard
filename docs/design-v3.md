@@ -35,7 +35,7 @@ Anything not checked against a real source is marked "likely".
 
 ## Flow (v1, prices only)
 ```
-GitHub Actions, cron 22:30 UTC Mon-Fri, one concurrency group
+GitHub Actions, cron 22:37 UTC Mon-Fri (was 22:30, see Decided 10), one concurrency group
   1. gate: not a trading day (calendar) → exit 0
   2. backfill: compare log.csv dates with the calendar → write "no run" rows for missed days (never fill in calls)
   3. score: for each stored call from day D where D+1 = today: read today's Close for D and D+1 from the stored D
@@ -128,3 +128,13 @@ Facts from the claude-api skill (cached 3.11.2026). Costs are likely, at ~3K inp
 2. Repo: private (Claude's recommendation, no objection). Secrets are safe either way; private hides the API bill
    history. The daily commit keeps the schedule alive.
 3. Packages: `yfinance`, `exchange_calendars`, `anthropic`. Eden approved the install, in a project venv, once coding starts.
+
+Decided later on 12.11.2026 (Eden chose, or Claude built and listed it in the reply):
+4. Tickers: top 10 companies, not 10 holdings. GOOG skipped (second Alphabet class), BRK-B takes rank 10. Day 0 = 2026-11-11.
+5. Split on D+1: that ticker is left out of that day's scoring (its two Close prices are on different scales). The split is logged.
+6. Late day: no new call, but the day is still fetched and yesterday's call is still scored.
+7. Spending guard (`bot/budget.py`): `usage.csv` ledger, monthly budget from `BOT_MONTHLY_BUDGET_USD` (default 0.25, 0 = pause the LLM). The hard stop is prepaid credits with auto-reload off in the Anthropic Console.
+8. LLM answer format: an object `{ticker: p_up}` (strict schema) instead of a list; prompt shows closes only, with `|` where a trading day is missing.
+9. `report.md` is rewritten on every run that does real work, not only weekly.
+11. The main-result interval uses the stationary bootstrap (resamples runs of consecutive days, mean block 5, Politis & Romano 1994; read as an abstract only, block length is my choice) instead of one-day-at-a-time resampling, which would look too narrow if neighbouring days resemble each other.
+10. Cron minute moved from 22:30 to 22:37 UTC, off the start-of-hour and half-hour marks where GitHub schedules are likely busiest (likely, not verified). Still about 15 hours before the next open. Scheduled workflows run from the default branch only (likely, not verified): merge to `main` before the schedule can fire.

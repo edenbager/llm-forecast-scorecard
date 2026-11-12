@@ -2,5 +2,6 @@
 tmp/
 __pycache__/
 *.pyc
+*.tmp
 .env
 .claude/
