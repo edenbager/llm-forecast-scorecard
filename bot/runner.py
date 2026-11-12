@@ -1,5 +1,6 @@
 """The daily run: gate, backfill, score yesterday's call, fetch, call, store, commit."""
 import json
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -67,7 +68,6 @@ def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
         elif bar.split:
             runlog.add(root, day, "split", ticker)   # noted only; history is never rewritten
     _score_previous_day(root, day, bars)                     # step 3
-    report.write_report(root)                                # same data gives the same bytes
     tickers = [t for t in config["tickers"] if bars.get(t) is not None]
     if not tickers:
         return                                     # nothing to ask the LLM about
@@ -86,3 +86,12 @@ def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
         "called_at": now.isoformat(), "p_up": outcome.p_up,
         "base_rate": base_rates,
     })
+    _write_report_safely(root)                               # last: it shows today's log row and call
+
+
+def _write_report_safely(root: Path) -> None:
+    """report.md is a side-output: if it breaks, say so in the job log, but never stop the day's call."""
+    try:
+        report.write_report(root)
+    except Exception as err:
+        print(f"WARNING: report.md not updated: {err!r}", file=sys.stderr)

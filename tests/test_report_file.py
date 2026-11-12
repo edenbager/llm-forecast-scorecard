@@ -5,10 +5,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from bot.report import build_report, load_rows, write_report
-from tests.helpers import FakeFetch, FakeGit, FakeLLM, make_project, seed_call, utc
+import contextlib
+import io
 
-FIXED_LINE = "4 weeks = pipeline check, not proof. A 5-point edge likely needs 1+ year."
+from bot.report import FIXED_LINE, build_report, load_rows, write_report
+from bot.runner import Deps, run
+from tests.helpers import FakeFetch, FakeGit, FakeLLM, make_project, seed_call, utc
 
 
 def _project(tmp, scored):
@@ -67,10 +69,43 @@ class ReportFile(unittest.TestCase):
         self.assertIn("No scored days yet", text)
         self.assertIn("no run 1", text)
         self.assertIn("no data 1", text)
+        self.assertIn("ok 1", text)                               # calls made are counted too
         self.assertIn(FIXED_LINE, text)
 
+    def test_one_scored_day_has_no_interval_and_says_so(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text = build_report(_project(tmp, TWO_DAYS[:1]))
+        self.assertIn("interval needs 2+ days", text)
+
+    def test_a_scored_day_without_its_call_file_is_a_clear_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _project(tmp, TWO_DAYS)
+            (root / "calls" / "2026-11-10.json").unlink()
+            with self.assertRaisesRegex(ValueError, "2026-11-10"):
+                build_report(root)
+
+    def test_a_broken_report_cannot_stop_the_days_call(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _project(tmp, TWO_DAYS)
+            (root / "calls" / "2026-11-10.json").unlink()         # the report will fail on this
+            deps = Deps(fetch=FakeFetch(add=1.0), llm=FakeLLM(), git=FakeGit())
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                code = run(utc("2026-11-11T22:30:00"), root, deps)
+            self.assertEqual(code, 0)
+            self.assertTrue((root / "calls" / "2026-11-11.json").exists())   # the call was still stored
+            self.assertIn("report.md not updated", err.getvalue())
+
+    def test_the_report_written_by_a_run_already_shows_that_runs_call(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = make_project(Path(tmp) / "p")
+            deps = Deps(fetch=FakeFetch(), llm=FakeLLM(), git=FakeGit())
+            run(utc("2026-11-10T22:30:00"), root, deps)
+            text = (root / "report.md").read_text()
+            self.assertIn("ok 1", text)
+            self.assertIn("Versions tried: v1", text)
+
     def test_a_daily_run_writes_the_same_report_every_time(self):
-        from bot.runner import Deps, run
         with tempfile.TemporaryDirectory() as tmp:
             root = make_project(Path(tmp) / "p")
             seed_call(root, "2026-11-09", utc("2026-11-09T22:30:00"))
