@@ -2,7 +2,7 @@ name: daily-run
 
 on:
   schedule:
-    - cron: "30 22 * * 1-5"      # 22:30 UTC Mon-Fri, after the US close in summer and winter
+    - cron: "37 22 * * 1-5"      # 22:37 UTC Mon-Fri, after the US close in summer and winter; off the :00/:30 marks, where GitHub schedules are busiest (likely, not verified)
   workflow_dispatch: {}           # manual run for testing; before the close it fails loudly on purpose
 
 concurrency:
