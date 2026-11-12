@@ -56,16 +56,18 @@ def close_for(ticker, add=0.0):
 
 # ---------- fakes ----------
 class FakeLLM:
-    def __init__(self, replies=None, stop_reason="end_turn"):
+    def __init__(self, replies=None, stop_reason="end_turn", usage=(0, 0)):
         self.replies = list(replies or [])
         self.stop_reason = stop_reason
+        self.usage = usage                      # (input_tokens, output_tokens) of every reply
         self.prompts = []
 
     def __call__(self, prompt, tickers=None):
         self.prompts.append(prompt)
         text = self.replies.pop(0) if self.replies else good_reply()
         return LLMReply(text=text, stop_reason=self.stop_reason,
-                        response_id=f"msg_{len(self.prompts)}", model="claude-haiku-5-5")
+                        response_id=f"msg_{len(self.prompts)}", model="claude-haiku-5-5",
+                        input_tokens=self.usage[0], output_tokens=self.usage[1])
 
 
 class FakeFetch:

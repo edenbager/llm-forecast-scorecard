@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
-from bot import market, report, runlog, store
+from bot import budget, market, report, runlog, store
 from bot.caller import make_call
 from bot.history import base_rate
 from bot.prompt import build_prompt
@@ -76,7 +76,11 @@ def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
     # Baselines first: if one cannot be computed the run fails loud BEFORE the paid LLM call.
     base_rates = {t: base_rate(history[t], day) for t in tickers}
     prompt = build_prompt(history, tickers, day, config["prompt_version"])
+    if not budget.allows_call(root, day, config["model"], prompt):
+        runlog.add(root, day, "budget")            # no call, no call file: a re-run may still call later
+        return
     outcome = make_call(prompt, deps.llm, tickers)
+    budget.record(root, day, config["prompt_version"], config["model"], outcome.replies)
     last = outcome.replies[-1]
     runlog.add(root, day, outcome.status)
     store.write_call(root, day, {

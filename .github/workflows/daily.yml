@@ -30,3 +30,4 @@ jobs:
       - run: python -m bot
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # the key lives only in the repo secret
+          BOT_MONTHLY_BUDGET_USD: ${{ vars.BOT_MONTHLY_BUDGET_USD }}   # optional repo variable; empty = 0.25, 0 = pause the LLM

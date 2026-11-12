@@ -5,11 +5,11 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from bot import runlog, store
+from bot import budget, runlog, store
 from bot.stats import Row, bootstrap_interval, brier, calibration, hit_rate
 
 FIXED_LINE = "4 weeks = pipeline check, not proof. A 5-point edge likely needs 1+ year."
-LOG_STATUSES = ["ok", "invalid", "no data", "no run", "late", "split"]   # every status runlog writes
+LOG_STATUSES = ["ok", "invalid", "no data", "no run", "late", "split", "budget"]   # every status runlog writes
 N_BOOT = 10_000
 BOOT_SEED = 0          # fixed, so the same data always gives the same report bytes
 
@@ -64,7 +64,9 @@ def build_report(root: Path) -> str:
     called = sorted({record.get("prompt_version", "?") for record in calls.values()})
     lines = ["# Prediction-scoring report", "", FIXED_LINE, "",
              "Log counts (all versions): " + ", ".join(f"{s} {counts[s]}" for s in LOG_STATUSES),
-             "Versions tried: " + (", ".join(called) or "none")]
+             "Versions tried: " + (", ".join(called) or "none"),
+             f"API spend this month (estimate from token counts): ${budget.month_spent(root, _latest_day(root)):.4f}"
+             f" of ${budget.monthly_budget():.2f} budget"]
     if not rows:
         return "\n".join(lines + ["", "No scored days yet."]) + "\n"
     summary = summarize_by_version([Row(r.p_up, r.outcome, r.prompt_version) for r in rows])
@@ -74,6 +76,12 @@ def build_report(root: Path) -> str:
     for version in sorted(by_version):
         lines += _section(version, by_version[version], summary[version])
     return "\n".join(lines) + "\n"
+
+
+def _latest_day(root: Path) -> date:
+    """The month the report is about: the newest day in the log (today's run has just added its row)."""
+    days = [r["day"] for r in runlog.read(root)]
+    return date.fromisoformat(max(days)) if days else date.today()
 
 
 def write_report(root: Path) -> None:

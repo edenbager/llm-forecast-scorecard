@@ -66,7 +66,8 @@ class DuplicateKeys(unittest.TestCase):
 class ApiClient(unittest.TestCase):
     def test_client_is_built_once_with_extra_retries(self):
         reply = SimpleNamespace(content=[SimpleNamespace(type="text", text="{}")],
-                                stop_reason="end_turn", id="m", model="x")
+                                stop_reason="end_turn", id="m", model="x",
+                                usage=SimpleNamespace(input_tokens=1, output_tokens=1))
         with mock.patch("bot.llm.anthropic.Anthropic") as anthropic_cls:
             anthropic_cls.return_value.messages.create.return_value = reply
             llm = make_llm("claude-haiku-5-5")

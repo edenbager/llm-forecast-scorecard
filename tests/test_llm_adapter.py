@@ -22,7 +22,8 @@ class FakeClient:
     def create(self, **kwargs):
         self.calls.append(kwargs)
         return SimpleNamespace(content=[SimpleNamespace(type="text", text=self._text)],
-                               stop_reason=self._stop, id="msg_42", model="claude-haiku-5-5")
+                               stop_reason=self._stop, id="msg_42", model="claude-haiku-5-5",
+                               usage=SimpleNamespace(input_tokens=500, output_tokens=120))
 
 
 class LlmAdapter(unittest.TestCase):
@@ -38,6 +39,7 @@ class LlmAdapter(unittest.TestCase):
         self.assertEqual(call["messages"], [{"role": "user", "content": "the prompt"}])
         self.assertEqual((reply.text, reply.stop_reason, reply.response_id, reply.model),
                          ('{"AAPL": 0.6}', "end_turn", "msg_42", "claude-haiku-5-5"))
+        self.assertEqual((reply.input_tokens, reply.output_tokens), (500, 120))   # what the API billed
 
     def test_schema_demands_exactly_the_days_tickers_once_each(self):
         schema = reply_schema(["AAPL", "BRK-B"])

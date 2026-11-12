@@ -20,6 +20,8 @@ class LLMReply:
     stop_reason: str
     response_id: str
     model: str
+    input_tokens: int = 0       # as billed by the API; feeds the spending guard (budget.py)
+    output_tokens: int = 0
 
 
 def reply_schema(tickers: list[str]) -> dict:
@@ -50,6 +52,7 @@ def make_llm(model: str, client=None, max_tokens: int = MAX_TOKENS) -> Callable[
         )
         text = "".join(block.text for block in response.content if block.type == "text")
         return LLMReply(text=text, stop_reason=response.stop_reason,
-                        response_id=response.id, model=response.model)
+                        response_id=response.id, model=response.model,
+                        input_tokens=response.usage.input_tokens, output_tokens=response.usage.output_tokens)
 
     return llm
