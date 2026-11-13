@@ -100,6 +100,13 @@ class SpyFetch(FakeFetch):
         return out
 
 
+def _stamp_benchmark(root, day, benchmark):
+    path = Path(root) / "calls" / f"{day}.json"
+    record = json.loads(path.read_text())
+    record["benchmark"] = benchmark
+    path.write_text(json.dumps(record))
+
+
 def _spy_project(tmp):
     root = make_project(Path(tmp) / "p")
     config = json.loads((root / "config.json").read_text())
@@ -110,6 +117,7 @@ def _spy_project(tmp):
     with open(root / "data" / "history.csv", "a", newline="") as f:
         csv.writer(f).writerows((day, "SPY", 1000.0 + i) for i, day in enumerate(dates))
     seed_call(root, "2026-11-09", utc("2026-11-09T22:30:00"), prompt_version="v2")
+    _stamp_benchmark(root, "2026-11-09", "SPY")        # a v2 call records the benchmark it was made under
     with open(root / "data" / "snapshots" / "2026-11-09.csv", "a", newline="") as f:
         csv.writer(f).writerow(["SPY", 1000.0, 1000.0, utc("2026-11-09T22:30:00").isoformat(), 0.0])
     return root
@@ -145,6 +153,18 @@ class BenchmarkRun(unittest.TestCase):
         self.assertEqual(got["llm"].prompts, [])
         self.assertIn(("2026-11-10", "SPY", "no data"),
                       [(r["day"], r["ticker"], r["status"]) for r in got["log"]])
+
+    def test_a_call_made_without_a_benchmark_is_scored_up_down_after_the_config_flips(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _spy_project(tmp)
+            seed_call(root, "2026-11-09", utc("2026-11-09T22:30:00"), prompt_version="v1")   # no benchmark field
+            with open(root / "data" / "snapshots" / "2026-11-09.csv", "a", newline="") as f:
+                csv.writer(f).writerow(["SPY", 1000.0, 1000.0, utc("2026-11-09T22:30:00").isoformat(), 0.0])
+            run(utc("2026-11-10T22:30:00"), root, Deps(
+                fetch=SpyFetch(spy_close=1500.0, add=1.0), llm=FakeLLM(), git=FakeGit()))
+            rows = read_scores(root)
+        self.assertEqual(len(rows), len(TICKERS))
+        self.assertTrue(all(r["outcome"] == "up" and r["prompt_version"] == "v1" for r in rows))
 
 
 if __name__ == "__main__":

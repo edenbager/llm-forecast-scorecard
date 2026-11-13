@@ -41,7 +41,7 @@ def run(now: datetime, root: Path, deps: Deps, day=None) -> int:
     return 0
 
 
-def _score_previous_day(root: Path, day, bars_today: dict, benchmark: str | None = None) -> None:
+def _score_previous_day(root: Path, day, bars_today: dict) -> None:
     """Score the call made on the previous trading day: its D is that day, today is D+1."""
     prev = market.previous_trading_day(day)
     path = store.call_path(root, prev)
@@ -50,7 +50,8 @@ def _score_previous_day(root: Path, day, bars_today: dict, benchmark: str | None
     record = json.loads(path.read_text())
     if not record.get("p_up"):                     # an invalid call has nothing to score
         return
-    rows = score_day(record["p_up"], store.load_snapshot(root, prev), bars_today, benchmark)
+    # The benchmark the call was made under, not today's config: a v1 call stays an up/down call.
+    rows = score_day(record["p_up"], store.load_snapshot(root, prev), bars_today, record.get("benchmark"))
     store.add_scores(root, prev, record["prompt_version"], rows)
 
 
@@ -71,7 +72,7 @@ def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
             runlog.add(root, day, "no data", ticker)
         elif bar.split:
             runlog.add(root, day, "split", ticker)   # noted; the ticker is left out of scoring
-    _score_previous_day(root, day, bars, benchmark)           # step 3
+    _score_previous_day(root, day, bars)                      # step 3
     if now > market.next_open_utc(day):
         runlog.add(root, day, "late")              # D+1 already opened: a call would be a leak
         _write_report_safely(root)
@@ -101,7 +102,7 @@ def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
         "prompt_version": config["prompt_version"], "model": last.model,
         "response_id": last.response_id, "raw_output": last.text,
         "called_at": now.isoformat(), "p_up": outcome.p_up,
-        "base_rate": base_rates,
+        "base_rate": base_rates, "benchmark": benchmark,
     })
     _write_report_safely(root)                               # last: it shows today's log row and call
 
