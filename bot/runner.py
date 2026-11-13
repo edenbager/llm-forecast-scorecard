@@ -41,7 +41,7 @@ def run(now: datetime, root: Path, deps: Deps, day=None) -> int:
     return 0
 
 
-def _score_previous_day(root: Path, day, bars_today: dict) -> None:
+def _score_previous_day(root: Path, day, bars_today: dict, benchmark: str | None = None) -> None:
     """Score the call made on the previous trading day: its D is that day, today is D+1."""
     prev = market.previous_trading_day(day)
     path = store.call_path(root, prev)
@@ -50,7 +50,7 @@ def _score_previous_day(root: Path, day, bars_today: dict) -> None:
     record = json.loads(path.read_text())
     if not record.get("p_up"):                     # an invalid call has nothing to score
         return
-    rows = score_day(record["p_up"], store.load_snapshot(root, prev), bars_today)
+    rows = score_day(record["p_up"], store.load_snapshot(root, prev), bars_today, benchmark)
     store.add_scores(root, prev, record["prompt_version"], rows)
 
 
@@ -63,14 +63,15 @@ def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
 
     # Fetch and score first, even on a late day: day D's final close is still there, and yesterday's
     # call can be graded at any time. Only the NEW call is forbidden once D+1 has opened.
-    bars = deps.fetch(config["tickers"], day, now)           # step 4
+    benchmark = config.get("benchmark")                      # v1b: a reference ticker, never asked about
+    bars = deps.fetch(config["tickers"] + ([benchmark] if benchmark else []), day, now)   # step 4
     store.write_snapshot(root, day, bars)
     for ticker, bar in bars.items():
         if bar is None:
             runlog.add(root, day, "no data", ticker)
         elif bar.split:
             runlog.add(root, day, "split", ticker)   # noted; the ticker is left out of scoring
-    _score_previous_day(root, day, bars)                     # step 3
+    _score_previous_day(root, day, bars, benchmark)           # step 3
     if now > market.next_open_utc(day):
         runlog.add(root, day, "late")              # D+1 already opened: a call would be a leak
         _write_report_safely(root)
@@ -78,11 +79,15 @@ def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
     tickers = [t for t in config["tickers"] if bars.get(t) is not None]
     if not tickers:
         return                                     # nothing to ask the LLM about
+    if benchmark and bars.get(benchmark) is None:
+        _write_report_safely(root)
+        return                                     # no benchmark close to compare with: no call today
 
     history = store.load_history(root)                       # step 5
     # Baselines first: if one cannot be computed the run fails loud BEFORE the paid LLM call.
-    base_rates = {t: base_rate(history[t], day) for t in tickers}
-    prompt = build_prompt(history, tickers, day, config["prompt_version"])
+    bench_closes = history[benchmark] if benchmark else None
+    base_rates = {t: base_rate(history[t], day, bench_closes) for t in tickers}
+    prompt = build_prompt(history, tickers, day, config["prompt_version"], benchmark)
     if not budget.allows_call(root, day, config["model"], prompt):
         runlog.add(root, day, "budget")            # no call, no call file: a re-run may still call later
         _write_report_safely(root)

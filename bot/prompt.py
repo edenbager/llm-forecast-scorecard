@@ -7,13 +7,13 @@ N_CLOSES = 20
 
 
 def build_prompt(history: dict[str, list[tuple[date, float]]], tickers: list[str],
-                 day: date, version: str) -> str:
+                 day: date, version: str, benchmark: str | None = None) -> str:
     """Day D is named once; each ticker gets only its closes, oldest first, the last one being day D.
     (Repeating a date next to every close would cost about 2,000 more tokens a day.) A '|' marks the
     one thing the dates used to show: a trading day missing between two closes."""
     ticker_lines = []
     gap_seen = False
-    for ticker in tickers:
+    for ticker in ([benchmark] if benchmark else []) + tickers:     # the benchmark line comes first
         recent = sorted((when, close) for when, close in history[ticker] if when <= day)[-N_CLOSES:]
         text, gap = _closes_text(recent)
         gap_seen = gap_seen or gap
@@ -25,12 +25,20 @@ def build_prompt(history: dict[str, list[tuple[date, float]]], tickers: list[str
     ]
     if gap_seen:
         lines.append("A '|' between two closes means at least one trading day is missing there.")
-    lines += [
-        "For each stock give p_up: the chance, from 0 to 1, that it closes higher on the next trading "
-        "day than on day D.",
-        "Answer with only a JSON object mapping every ticker above to its p_up.",
-        "",
-    ]
+    if benchmark:
+        lines += [
+            f"For each stock (not {benchmark}) give p_up: the chance, from 0 to 1, that its return on the "
+            f"next trading day is higher than {benchmark}'s return on that day.",
+            f"Answer with only a JSON object mapping every stock above, without {benchmark}, to its p_up.",
+            "",
+        ]
+    else:
+        lines += [
+            "For each stock give p_up: the chance, from 0 to 1, that it closes higher on the next trading "
+            "day than on day D.",
+            "Answer with only a JSON object mapping every ticker above to its p_up.",
+            "",
+        ]
     return "\n".join(lines + ticker_lines)
 
 
