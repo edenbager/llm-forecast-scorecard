@@ -1,4 +1,4 @@
-# v1b plan: "will X beat SPY tomorrow?" (proposal, not built)
+# v1b plan: "will X beat SPY tomorrow?" (built, live since 14.11.2026; decision 12 in design-v3.md)
 
 Written 13.11.2026 while Eden was away. Merge this PR = yes to the plan, close = no. A departure from `docs/design-v3.md`: listed as a decision below.
 
