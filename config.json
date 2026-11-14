@@ -11,9 +11,10 @@
     "TSLA",
     "BRK-B"
   ],
-  "prompt_version": "v1",
+  "prompt_version": "v2",
   "model": "claude-haiku-5-5",
   "day0": "2026-11-11",
   "weights_source": "SPY top holdings: ssga.com SPY page and stockanalysis.com/etf/spy/holdings (same figures on both, so possibly one data feed). GOOG skipped as the second Alphabet share class; BRK-B was rank 11 and TSLA 1.68% vs BRK-B 1.67%.",
-  "weights_as_of": "2026-11-11 (pages say 'Updated Nov 11, 2026')"
+  "weights_as_of": "2026-11-11 (pages say 'Updated Nov 11, 2026')",
+  "benchmark": "SPY"
 }
