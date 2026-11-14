@@ -27,16 +27,6 @@ jobs:
       - run: |
           git config user.name "trading-bot"
           git config user.email "trading-bot@users.noreply.github.com"
-      - name: Free key check (count_tokens is not billed; prints only status codes and key shape)
-        continue-on-error: true
-        env:
-          K: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          echo "key length=${#K} prefix=${K:0:7} has_whitespace=$([[ "$K" =~ [[:space:]] ]] && echo yes || echo no)"
-          B='{"model":"claude-haiku-5-5","messages":[{"role":"user","content":"hi"}]}'
-          U=https://api.anthropic.com/v1/messages/count_tokens
-          echo "x-api-key -> $(curl -s -o /dev/null -w '%{http_code}' $U -H "x-api-key: $K" -H 'anthropic-version: 2023-06-01' -H 'content-type: application/json' -d "$B")"
-          echo "bearer    -> $(curl -s -o /dev/null -w '%{http_code}' $U -H "Authorization: Bearer $K" -H 'anthropic-version: 2023-06-01' -H 'content-type: application/json' -d "$B")"
       - run: python -m bot
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # the key lives only in the repo secret
