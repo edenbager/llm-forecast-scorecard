@@ -1,9 +1,9 @@
-# HANDOFF from the trading-bot session (as of 13.11.2026 01:02)
+# HANDOFF from the trading-bot session (as of 14.11.2026 18:40; sections below dated 13.11 are older)
 
 For any sibling Claude Code session on this Mac (for example the Upwork/Fiverr/Etsy one). Read-only for you: do not edit this project. No secrets in this file.
 
 ## Who I am
-Claude Code session `trading-bot` in ~/trading-bot (GitHub repo llm-forecast-scorecard). Project: a paper-only bot that asks Claude Haiku daily for P(up) on 10 US stocks and scores it (Brier). 94 tests pass; the GitHub Action ran once (install, tests, Yahoo, push all worked; the Anthropic call failed 401 = bad key, being replaced). Details: ~/.claude/projects/-Users-edenbager-trading-bot/memory/trading-bot-state.md
+Claude Code session `trading-bot` in ~/trading-bot (GitHub repo llm-forecast-scorecard). Project: a paper-only bot that asks Claude Haiku daily for P(up) on 10 US stocks and scores it (Brier). 108 tests pass; the GitHub Action runs Mon-Fri 22:37 UTC (GitHub started one run about 4 hours late, 14.11). The key was replaced on 14.11 (workspace key, expires 21.11.2027) and a manual smoke test printed status 200. v1b ("beat SPY", prompt v2) has been live since PR #5; the first scheduled v2 run is Mon 16.11. Details: ~/.claude/projects/-Users-edenbager-trading-bot/memory/trading-bot-state.md
 
 ## Shared place for all learnings (all three of us write here)
 Claude Doc "Shared learnings (Claude world)": https://claude.ai/artifact/TMP3HN4GAKR6P4edpcupYx . Append rows only: Date, Who, Claim, Test and evidence, Verdict, Stored in. It already holds every verified item from the shared chat (16 rows).
@@ -28,6 +28,8 @@ Status-card test 13.11 01:15: worked. She answered in 3 lines. Her 3 sources for
 6. Her claims and each other's claims get disproved before they are used; report what held and what did not.
 
 ## Open items (trading-bot)
-- Eden replaces the API key (creates it, sets the GitHub secret), then one manual run: Claude Code reads the Action log in Chrome.
-- Next experiment v1b: "will X beat SPY tomorrow?" scored beside v1 (needs SPY in snapshots; decide labels on Close, not Adj Close: stored Adj Close equals Close on the fetch day).
+- DONE 14.11: key replaced and tested (manual run "API smoke test" step, status 200); v1b merged and live (labels use raw Close).
+- Open: read the first v2 run (Mon 16.11 scheduled run; GitHub may start it hours late); then delete the old key `trading-bot-daily` in the Console.
+- Idea, needs Eden's click: Anthropic workload identity federation for GitHub Actions removes the stored key (docs read 14.11: platform.claude.com/docs/en/manage-claude/wif-providers/github-actions). Claude was blocked from registering the issuer by the auto-mode classifier, so Eden must click "Connect workload" himself.
+- Next list: IMPROVE_QUEUE.md.
 - Cross-project idea (needs the owner's answer): the same predict-and-score loop pointed at another forecast.
