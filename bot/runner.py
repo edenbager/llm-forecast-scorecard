@@ -1,5 +1,6 @@
 """The daily run: gate, backfill, score yesterday's call, fetch, call, store, commit."""
 import json
+import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -133,6 +134,7 @@ def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
         "response_id": last.response_id, "raw_output": last.text,
         "called_at": now.isoformat(), "p_up": outcome.p_up,
         "base_rate": base_rates, "benchmark": benchmark,
+        "run_sha": os.environ.get("GITHUB_SHA"),             # the commit this run read config.json from
     })
     _write_report_safely(root)                               # last: it shows today's log row and call
 

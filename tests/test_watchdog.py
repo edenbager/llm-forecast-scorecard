@@ -1,6 +1,7 @@
 """Watchdog: a day after a trading day, the call file must exist and match config.json.
 Run by .github/workflows/watchdog.yml; a problem fails the job and opens an issue."""
 import json
+import subprocess
 import tempfile
 import unittest
 from datetime import date
@@ -87,6 +88,59 @@ class WatchdogScoring(unittest.TestCase):
             root = _project(tmp)
             seed_call(root, "2026-11-10", utc("2026-11-10T22:40:00"))
             self.assertIsNone(check(root, date(2026, 11, 11)))
+
+
+class WatchdogConfigChange(unittest.TestCase):
+    """14.11: config flipped to v2 after the 13.11 run, and the watchdog flagged a call that was right when made.
+    A call records the commit its run checked out (run_sha) and is judged against config.json at that commit."""
+
+    def _git(self, root, *args):
+        return subprocess.run(["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t",
+                               "-c", "commit.gpgsign=false", *args], check=True, capture_output=True, text=True)
+
+    def _set_version(self, root, version):
+        config = json.loads((root / "config.json").read_text())
+        config["prompt_version"] = version
+        (root / "config.json").write_text(json.dumps(config))
+
+    def _repo(self, tmp, config_version, call_version):
+        """A repo whose first commit is what the run checked out; the call names it in run_sha."""
+        root = _project(tmp, prompt_version=config_version)
+        self._git(root, "init", "-q")
+        self._git(root, "add", "-A")
+        self._git(root, "commit", "-qm", "checkout of the run")
+        sha = self._git(root, "rev-parse", "HEAD").stdout.strip()
+        seed_call(root, MONDAY_CALL, utc("2026-11-09T22:40:00"), prompt_version=call_version)
+        path = root / "calls" / f"{MONDAY_CALL}.json"
+        path.write_text(json.dumps({**json.loads(path.read_text()), "run_sha": sha}))
+        return root
+
+    def test_a_config_change_after_the_run_is_not_a_problem(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp, "v1", "v1")
+            self._set_version(root, "v2")
+            self._git(root, "commit", "-qam", "flip to v2")
+            self.assertIsNone(check(root, date(2026, 11, 10)))
+
+    def test_a_call_that_ignored_an_unchanged_config_is_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp, "v2", "v1")
+            self.assertIn("prompt_version", check(root, date(2026, 11, 10)))
+
+    def test_a_wrong_call_stays_wrong_after_a_later_config_edit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp, "v2", "v1")                  # the run read v2 and wrote v1
+            self._set_version(root, "v3")
+            self._git(root, "commit", "-qam", "later edit")
+            self.assertIn("prompt_version", check(root, date(2026, 11, 10)))
+
+    def test_an_unusable_run_sha_falls_back_to_the_current_config(self):
+        for bad in ("0" * 40, "--output=x"):                    # unknown commit; text git would read as an option
+            with self.subTest(run_sha=bad), tempfile.TemporaryDirectory() as tmp:
+                root = self._repo(tmp, "v2", "v1")
+                path = root / "calls" / f"{MONDAY_CALL}.json"
+                path.write_text(json.dumps({**json.loads(path.read_text()), "run_sha": bad}))
+                self.assertIn("prompt_version", check(root, date(2026, 11, 10)))
 
 
 if __name__ == "__main__":
