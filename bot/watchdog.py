@@ -4,6 +4,7 @@ The daily run starts at 22:37 UTC on trading day D. This check runs the next mor
 call for D must exist, hold probabilities, and match config.json. A non-trading D is skipped.
 """
 import json
+import re
 import subprocess
 import sys
 from datetime import date, datetime, timedelta, timezone
@@ -12,17 +13,20 @@ from pathlib import Path
 from bot import market, store
 
 
-def config_changed_since(root: Path, sha: str | None) -> bool:
-    """True only when git shows config.json changed after the run's commit; unknown counts as unchanged,
-    so a mismatch is reported rather than excused."""
-    if not sha:
-        return False
-    try:
-        diff = subprocess.run(["git", "-C", str(root), "diff", "--quiet", sha, "HEAD", "--", "config.json"],
-                              capture_output=True)
-    except OSError:
-        return False
-    return diff.returncode == 1
+def config_of_run(root: Path, record: dict) -> dict:
+    """config.json at the commit the run checked out (the call's run_sha), so a config change merged after
+    the run is not blamed on the call. Calls without a usable run_sha (written before 16.11, local runs,
+    an unknown commit) are judged against the current config.json, as before."""
+    sha = record.get("run_sha") or ""
+    if re.fullmatch(r"[0-9a-f]{7,40}", sha):
+        try:
+            shown = subprocess.run(["git", "-C", str(root), "show", f"{sha}:./config.json"],
+                                   capture_output=True, text=True)
+            if shown.returncode == 0:
+                return json.loads(shown.stdout)
+        except OSError:
+            pass
+    return json.loads((root / "config.json").read_text())
 
 
 def check(root: Path, today: date) -> str | None:
@@ -33,14 +37,13 @@ def check(root: Path, today: date) -> str | None:
     path = store.call_path(root, day)
     if not path.exists():
         return f"no call file for {day}"
-    config = json.loads((Path(root) / "config.json").read_text())
     record = json.loads(path.read_text())
+    config = config_of_run(Path(root), record)
     if not record.get("p_up"):
         return f"call for {day} has no probabilities (status {record.get('status')})"
-    stale = config_changed_since(Path(root), record.get("run_sha"))     # 14.11: config flipped after the run
-    if record.get("prompt_version") != config["prompt_version"] and not stale:
+    if record.get("prompt_version") != config["prompt_version"]:
         return f"call for {day} has prompt_version {record.get('prompt_version')}, config says {config['prompt_version']}"
-    if record.get("benchmark") != config.get("benchmark") and not stale:
+    if record.get("benchmark") != config.get("benchmark"):
         return f"call for {day} has benchmark {record.get('benchmark')}, config says {config.get('benchmark')}"
     # The run on day D grades the call of the trading day before: by now it must have score rows.
     earlier = market.previous_trading_day(day)

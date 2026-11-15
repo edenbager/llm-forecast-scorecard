@@ -1,7 +1,6 @@
 """Watchdog: a day after a trading day, the call file must exist and match config.json.
 Run by .github/workflows/watchdog.yml; a problem fails the job and opens an issue."""
 import json
-import os
 import subprocess
 import tempfile
 import unittest
@@ -93,7 +92,7 @@ class WatchdogScoring(unittest.TestCase):
 
 class WatchdogConfigChange(unittest.TestCase):
     """14.11: config flipped to v2 after the 13.11 run, and the watchdog flagged a call that was right when made.
-    A call records the commit its run checked out (run_sha); a mismatch is excused only if config.json changed since."""
+    A call records the commit its run checked out (run_sha) and is judged against config.json at that commit."""
 
     def _git(self, root, *args):
         return subprocess.run(["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t",
@@ -128,12 +127,20 @@ class WatchdogConfigChange(unittest.TestCase):
             root = self._repo(tmp, "v2", "v1")
             self.assertIn("prompt_version", check(root, date(2026, 11, 10)))
 
-    def test_an_unknown_run_commit_is_reported_not_excused(self):
+    def test_a_wrong_call_stays_wrong_after_a_later_config_edit(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root = self._repo(tmp, "v2", "v1")
-            path = root / "calls" / f"{MONDAY_CALL}.json"
-            path.write_text(json.dumps({**json.loads(path.read_text()), "run_sha": "0" * 40}))
+            root = self._repo(tmp, "v2", "v1")                  # the run read v2 and wrote v1
+            self._set_version(root, "v3")
+            self._git(root, "commit", "-qam", "later edit")
             self.assertIn("prompt_version", check(root, date(2026, 11, 10)))
+
+    def test_an_unusable_run_sha_falls_back_to_the_current_config(self):
+        for bad in ("0" * 40, "--output=x"):                    # unknown commit; text git would read as an option
+            with self.subTest(run_sha=bad), tempfile.TemporaryDirectory() as tmp:
+                root = self._repo(tmp, "v2", "v1")
+                path = root / "calls" / f"{MONDAY_CALL}.json"
+                path.write_text(json.dumps({**json.loads(path.read_text()), "run_sha": bad}))
+                self.assertIn("prompt_version", check(root, date(2026, 11, 10)))
 
 
 if __name__ == "__main__":
