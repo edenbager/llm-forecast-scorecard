@@ -1,6 +1,7 @@
 """Watchdog: a day after a trading day, the call file must exist and match config.json.
 Run by .github/workflows/watchdog.yml; a problem fails the job and opens an issue."""
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -91,34 +92,55 @@ class WatchdogScoring(unittest.TestCase):
 
 
 class WatchdogConfigChange(unittest.TestCase):
-    """14.11: config flipped to v2 after the 13.11 run; the watchdog then flagged a call that was right when made."""
+    """14.11: config flipped to v2 after the 13.11 run; the watchdog then flagged a call that was right when made.
+    The call is judged against config.json as it stood on main at the call's called_at (22:40 UTC here)."""
 
-    def _git(self, root, *args):
-        subprocess.run(["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t", *args],
-                       check=True, capture_output=True)
+    def _commit(self, root, message, when):
+        """Commit everything with a fixed date, so the test controls what was live when."""
+        env = {**os.environ, "GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": when}
+        subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+        subprocess.run(["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+                        "commit", "-qm", message], check=True, capture_output=True, env=env)
 
-    def _committed_call(self, tmp, call_version, config_version_at_commit):
-        root = _project(tmp, prompt_version=config_version_at_commit)
-        self._git(root, "init", "-q")
+    def _set_version(self, root, version):
+        config = json.loads((root / "config.json").read_text())
+        config["prompt_version"] = version
+        (root / "config.json").write_text(json.dumps(config))
+
+    def _repo(self, tmp, config_version, call_version):
+        root = _project(tmp, prompt_version=config_version)
+        subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
         seed_call(root, MONDAY_CALL, utc("2026-11-09T22:40:00"), prompt_version=call_version)
-        self._git(root, "add", "-A")
-        self._git(root, "commit", "-qm", "bot run")
+        self._commit(root, "start", "2026-11-09T20:00:00+00:00")         # config live before the run
         return root
 
     def test_a_config_change_after_the_run_is_not_a_problem(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root = self._committed_call(tmp, "v1", "v1")
-            config = json.loads((root / "config.json").read_text())
-            config["prompt_version"] = "v2"
-            (root / "config.json").write_text(json.dumps(config))
-            self._git(root, "commit", "-qam", "flip to v2")
+            root = self._repo(tmp, "v1", "v1")
+            self._set_version(root, "v2")
+            self._commit(root, "flip to v2", "2026-11-10T00:02:00+00:00")
             self.assertIsNone(check(root, date(2026, 11, 10)))
 
-    def test_a_call_that_ignored_the_config_of_its_own_commit_is_reported(self):
+    def test_a_call_that_missed_the_live_config_is_reported_even_if_config_changed_since(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root = self._committed_call(tmp, "v1", "v2")
+            root = self._repo(tmp, "v2", "v1")                             # v2 was live, the run wrote v1
+            self._set_version(root, "v1")
+            self._commit(root, "back to v1", "2026-11-10T00:02:00+00:00")  # the current config alone would pass it
             self.assertIn("prompt_version", check(root, date(2026, 11, 10)))
 
+
+    def test_a_branch_commit_merged_after_the_run_is_not_live_yet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp, "v1", "v1")
+            git = ["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
+            subprocess.run(git + ["switch", "-qc", "flip"], check=True)
+            self._set_version(root, "v2")
+            self._commit(root, "flip on a branch", "2026-11-09T21:00:00+00:00")   # before the run, on a branch
+            subprocess.run(git + ["switch", "-q", "-"], check=True)
+            env = {**os.environ, "GIT_AUTHOR_DATE": "2026-11-10T00:02:00+00:00",
+                   "GIT_COMMITTER_DATE": "2026-11-10T00:02:00+00:00"}
+            subprocess.run(git + ["merge", "-q", "--no-ff", "-m", "merge flip", "flip"], check=True, env=env)
+            self.assertIsNone(check(root, date(2026, 11, 10)))
 
 if __name__ == "__main__":
     unittest.main()

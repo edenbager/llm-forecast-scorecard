@@ -12,16 +12,21 @@ from pathlib import Path
 from bot import market, store
 
 
-def config_at_call(root: Path, path: Path) -> dict:
-    """config.json as committed with the call file (its newest add; calls are write-once), so a config
-    change after the run is not blamed on the call. Falls back to the current config when git can't tell (no repo, or the call isn't committed yet)."""
-    def git(*args):
-        return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True)
-    added = git("log", "--diff-filter=A", "--format=%H", "--", str(path.relative_to(root))).stdout.split()
-    if added:
-        shown = git("show", f"{added[0]}:config.json")
-        if shown.returncode == 0:
-            return json.loads(shown.stdout)
+def config_at(root: Path, when: str) -> dict:
+    """config.json as it stood at `when` (the call's called_at) on the main line, so a config change merged
+    after the run is not blamed on the call. --first-parent: a PR counts from its merge, not its branch
+    commits. Falls back to the current config, with a note, when git can't tell (no repo, no git, or
+    history too shallow)."""
+    try:
+        sha = subprocess.run(["git", "-C", str(root), "rev-list", "-1", "--first-parent", f"--before={when}", "HEAD"],
+                             capture_output=True, text=True).stdout.strip()
+        shown = subprocess.run(["git", "-C", str(root), "show", f"{sha}:./config.json"],
+                               capture_output=True, text=True) if sha else None
+    except OSError:
+        shown = None
+    if shown is not None and shown.returncode == 0:
+        return json.loads(shown.stdout)
+    print(f"watchdog: no git config before {when}; using the current config.json", file=sys.stderr)
     return json.loads((Path(root) / "config.json").read_text())
 
 
@@ -33,8 +38,8 @@ def check(root: Path, today: date) -> str | None:
     path = store.call_path(root, day)
     if not path.exists():
         return f"no call file for {day}"
-    config = config_at_call(Path(root), path)
     record = json.loads(path.read_text())
+    config = config_at(Path(root), record.get("called_at") or f"{day}T23:59:59+00:00")
     if not record.get("p_up"):
         return f"call for {day} has no probabilities (status {record.get('status')})"
     if record.get("prompt_version") != config["prompt_version"]:
