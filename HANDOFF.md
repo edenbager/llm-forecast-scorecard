@@ -29,7 +29,7 @@ Status-card test 13.11 01:15: worked. She answered in 3 lines. Her 3 sources for
 
 ## Open items (trading-bot)
 - DONE 14.11: key replaced and tested (manual run "API smoke test" step, status 200); v1b merged and live (labels use raw Close).
-- Open PR #17 (draft, live-bot change, needs Eden's word; hold until after the Mon 16.11 run): catch-up scoring, so a missed D+1 run no longer leaves a call unscored (design decision 13; 118 tests on that branch; two code-review rounds done).
+- DONE 15.11: PR #17 MERGED (c872a1e, 12:18Z, after Eden said to merge it myself); first run of this code is Mon 16.11. Catch-up scoring, so a missed D+1 run no longer leaves a call unscored (design decision 13; 118 tests on main, recounted after the merge; two code-review rounds done).
 - Open: read the first v2 run (Mon 16.11 scheduled run; GitHub may start it hours late; the watchdog, PR #10, checks it Tue 17.11 09:17 UTC and opens an issue on failure); then delete the old key `trading-bot-daily` in the Console.
 - Idea, needs Eden's click: Anthropic workload identity federation for GitHub Actions removes the stored key (docs read 14.11: platform.claude.com/docs/en/manage-claude/wif-providers/github-actions). Claude was blocked from registering the issuer by the auto-mode classifier, so Eden must click "Connect workload" himself.
 - Next list: IMPROVE_QUEUE.md.
