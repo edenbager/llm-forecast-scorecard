@@ -2,9 +2,9 @@
 
 Rules: each item needs a failing test or a checkable read first (CLAUDE.md rule 3). A change to the live bot goes in a PR for Eden to merge. An empty tick ends in one line.
 
-1. Read the first v2 run after Mon 16.11 22:37 UTC (runs can start hours late): status, `calls/2026-11-16.json` has `prompt_version` v2 and `benchmark` SPY, `usage.csv` row, `log.csv` rows. Blocked until that run exists.
+1. Read the first v2 run after Mon 16.11 22:37 UTC (runs can start hours late): status, `calls/2026-11-16.json` has `prompt_version` v2 and `benchmark` SPY, `usage.csv` row, `log.csv` rows. Blocked until that run exists. AUTOMATED 14.11: `watchdog.yml` (PR #10) runs Tue-Sat 09:17 UTC and opens a "Bot check failed" issue if the previous day's call is missing or does not match config. No issue by Tue 17.11 = fine; still read the numbers once.
 2. DONE 14.11: `report.py` scores each prompt_version on its own (`summarize_by_version`, docstring line 1). Still look at the real `report.md` after the first scored v2 day (one trading day after its call).
-3. DROPPED 14.11 (HANDOFF 23:30; smoke test run #6 already proves the key at no cost): a `--dry-run` flag for `python -m bot` that fetches and builds the prompt but makes no paid call, so a weekday test needs no money. Disprove first: the smoke test already covers the key, so this may be redundant.
+3. DROPPED 14.11: `--dry-run` flag. Prompt building is already tested offline (`tests/test_leak.py` and others), the manual smoke test covers the key, the watchdog covers the stored call. Nothing left for it to test.
 4. Deleted by Eden's click only: old key `trading-bot-daily` (after item 1 passes); federation setup (see HANDOFF.md).
 
 6. DROPPED 15.11: Bank of Israel dp0412h as a baseline for report.md. Read (11 of 38 pages): TASE 1999-2001 buy recommendations beat the market (+2.3% at 3 months, +4.3% at 6), so my first snippet summary was wrong; and its subject is analyst affiliation on Tel Aviv stocks, not daily US up/down calls. No baseline for our bot. Hebrew scout found no scoreable Hebrew forecaster (kb: forecast-scorecard-sources.md).
