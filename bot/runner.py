@@ -60,26 +60,28 @@ CATCH_UP_DAYS = 5      # how many older trading days are checked for a call that
 
 def _score_missed(root: Path, day, deps: Deps, now: datetime) -> None:
     """Grade older calls with no score rows: their D+1 run never happened, so fetch that D+1 now.
-    A failure here only logs; it must never stop today's call."""
-    scored = {row["day"] for row in store.read_scores(root)}
+    Any failure only prints a warning to the job log; it must never stop today's call. (It is not written
+    to log.csv: a day-level row there would replace that day's 'ok' in the report counts.)
+    Known costs, accepted: a call that scores zero rows is fetched again on each run of the window, and a
+    call older than the window is never graded."""
     older = market.previous_trading_day(day)                 # yesterday's call is graded by its own step
     for _ in range(CATCH_UP_DAYS):
         older = market.previous_trading_day(older)
-        path = store.call_path(root, older)
-        if older.isoformat() in scored or not path.exists():
-            continue
-        record = json.loads(path.read_text())
-        snapshot = store.load_snapshot(root, older)
-        if not record.get("p_up") or not snapshot:
-            continue
-        benchmark = record.get("benchmark")
         try:
+            path = store.call_path(root, older)
+            if older.isoformat() in {row["day"] for row in store.read_scores(root)} or not path.exists():
+                continue
+            record = json.loads(path.read_text())
+            snapshot = store.load_snapshot(root, older)
+            if not record.get("p_up") or not snapshot:
+                continue
+            benchmark = record.get("benchmark")
             bars = deps.fetch(list(record["p_up"]) + ([benchmark] if benchmark else []),
                               market.next_trading_day(older), now)
             store.add_scores(root, older, record["prompt_version"],
                              score_day(record["p_up"], snapshot, bars, benchmark))
-        except Exception:
-            runlog.add(root, older, "catch-up failed")
+        except Exception as err:
+            print(f"WARNING: catch-up scoring of {older} failed: {err!r}", file=sys.stderr)
 
 
 def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:

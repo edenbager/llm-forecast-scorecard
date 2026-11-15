@@ -1,6 +1,8 @@
 """Extra test (not in the design's 28), proposed 15.11.2026: a missed run must not leave a call unscored.
 Today only the previous trading day's call is scored. If Tuesday's run never happens, Monday's call
 (whose D+1 is Tuesday) is never scored. The run now also grades older calls that have no score rows."""
+import contextlib
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -39,9 +41,22 @@ class CatchUp(unittest.TestCase):
                     raise RuntimeError("yahoo down")
                 return good(tickers, day, now)
 
-            run(utc("2026-11-11T22:30:00"), root, Deps(fetch=fetch, llm=FakeLLM(), git=FakeGit()))
+            with contextlib.redirect_stderr(io.StringIO()) as err:
+                run(utc("2026-11-11T22:30:00"), root, Deps(fetch=fetch, llm=FakeLLM(), git=FakeGit()))
             self.assertTrue((root / "calls" / "2026-11-11.json").exists())
-            self.assertIn(("2026-11-09", "catch-up failed"), [(r["day"], r["status"]) for r in read_log(root)])
+            self.assertIn("catch-up scoring of 2026-11-09 failed", err.getvalue())
+            # The warning is not a log.csv row: Monday must still count as 'ok' in the report.
+            self.assertEqual([r["status"] for r in read_log(root) if r["day"] == "2026-11-09"], ["ok"])
+
+    def test_a_corrupt_older_call_file_does_not_stop_todays_call(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = make_project(Path(tmp) / "p")
+            seed_call(root, "2026-11-09", utc("2026-11-09T22:30:00"))
+            (root / "calls" / "2026-11-09.json").write_text('{"day": "2026-11-09", "p_up": {')   # cut off
+            with contextlib.redirect_stderr(io.StringIO()) as err:
+                run(utc("2026-11-11T22:30:00"), root, Deps(fetch=FakeFetch(add=1.0), llm=FakeLLM(), git=FakeGit()))
+            self.assertTrue((root / "calls" / "2026-11-11.json").exists())
+            self.assertIn("catch-up scoring of 2026-11-09 failed", err.getvalue())
 
 
 if __name__ == "__main__":
