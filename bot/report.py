@@ -9,7 +9,7 @@ from bot import budget, runlog, store
 from bot.stats import Row, bootstrap_interval, brier, calibration, hit_rate
 
 FIXED_LINE = "4 weeks = pipeline check, not proof. A 5-point edge likely needs 1+ year."
-LOG_STATUSES = ["ok", "invalid", "no data", "no run", "late", "split", "budget"]   # every status runlog writes
+LOG_STATUSES = ["ok", "invalid", "no data", "no run", "late", "split", "budget", "catch-up failed"]   # every status runlog writes
 MIN_DAYS_FOR_INTERVAL = 20    # about 4 weeks of trading days; fewer days give a range that only looks precise
 N_BOOT = 10_000
 BOOT_SEED = 0          # fixed, so the same data always gives the same report bytes

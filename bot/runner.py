@@ -55,6 +55,33 @@ def _score_previous_day(root: Path, day, bars_today: dict) -> None:
     store.add_scores(root, prev, record["prompt_version"], rows)
 
 
+CATCH_UP_DAYS = 5      # how many older trading days are checked for a call that never got its D+1 run
+
+
+def _score_missed(root: Path, day, deps: Deps, now: datetime) -> None:
+    """Grade older calls with no score rows: their D+1 run never happened, so fetch that D+1 now.
+    A failure here only logs; it must never stop today's call."""
+    scored = {row["day"] for row in store.read_scores(root)}
+    older = market.previous_trading_day(day)                 # yesterday's call is graded by its own step
+    for _ in range(CATCH_UP_DAYS):
+        older = market.previous_trading_day(older)
+        path = store.call_path(root, older)
+        if older.isoformat() in scored or not path.exists():
+            continue
+        record = json.loads(path.read_text())
+        snapshot = store.load_snapshot(root, older)
+        if not record.get("p_up") or not snapshot:
+            continue
+        benchmark = record.get("benchmark")
+        try:
+            bars = deps.fetch(list(record["p_up"]) + ([benchmark] if benchmark else []),
+                              market.next_trading_day(older), now)
+            store.add_scores(root, older, record["prompt_version"],
+                             score_day(record["p_up"], snapshot, bars, benchmark))
+        except Exception:
+            runlog.add(root, older, "catch-up failed")
+
+
 def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
     config = json.loads((root / "config.json").read_text())
     runlog.backfill(root, day)                     # step 2
@@ -73,6 +100,7 @@ def _process_day(now: datetime, root: Path, deps: Deps, day) -> None:
         elif bar.split:
             runlog.add(root, day, "split", ticker)   # noted; the ticker is left out of scoring
     _score_previous_day(root, day, bars)                      # step 3
+    _score_missed(root, day, deps, now)                       # step 3b: calls whose D+1 run was missed
     if now > market.next_open_utc(day):
         runlog.add(root, day, "late")              # D+1 already opened: a call would be a leak
         _write_report_safely(root)
