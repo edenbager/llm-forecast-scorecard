@@ -135,5 +135,6 @@ class WatchdogConfigChange(unittest.TestCase):
             path.write_text(json.dumps({**json.loads(path.read_text()), "run_sha": "0" * 40}))
             self.assertIn("prompt_version", check(root, date(2026, 11, 10)))
 
+
 if __name__ == "__main__":
     unittest.main()
