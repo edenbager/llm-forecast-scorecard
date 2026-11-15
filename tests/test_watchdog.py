@@ -6,6 +6,8 @@ import unittest
 from datetime import date
 from pathlib import Path
 
+from bot import store
+from bot.score import ScoredRow
 from bot.watchdog import check
 from tests.helpers import make_project, seed_call, utc
 
@@ -58,6 +60,33 @@ class Watchdog(unittest.TestCase):
             root = _project(tmp, benchmark="SPY")
             seed_call(root, MONDAY_CALL, utc("2026-11-09T22:40:00"))     # seed has no benchmark field
             self.assertIn("benchmark", check(root, date(2026, 11, 10)))
+
+
+class WatchdogScoring(unittest.TestCase):
+    """15.11: the run on day D scores the call of the trading day before. Nothing checked that it did."""
+
+    def _two_calls(self, tmp):
+        root = _project(tmp)
+        seed_call(root, "2026-11-09", utc("2026-11-09T22:40:00"))        # Monday
+        seed_call(root, "2026-11-10", utc("2026-11-10T22:40:00"))        # Tuesday
+        return root
+
+    def test_an_unscored_earlier_call_is_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._two_calls(tmp)
+            self.assertIn("not scored", check(root, date(2026, 11, 11)))      # Wednesday morning
+
+    def test_a_scored_earlier_call_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._two_calls(tmp)
+            store.add_scores(root, date(2026, 11, 9), "v1", [ScoredRow("AAPL", 0.6, "up")])
+            self.assertIsNone(check(root, date(2026, 11, 11)))
+
+    def test_no_earlier_call_means_nothing_to_score(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _project(tmp)
+            seed_call(root, "2026-11-10", utc("2026-11-10T22:40:00"))
+            self.assertIsNone(check(root, date(2026, 11, 11)))
 
 
 if __name__ == "__main__":
