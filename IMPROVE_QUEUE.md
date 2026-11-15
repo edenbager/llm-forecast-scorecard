@@ -12,6 +12,8 @@ Rules: each item needs a failing test or a checkable read first (CLAUDE.md rule 
 
 7. Watch, no code change (15.11, scout run 2): ai-seemarket.com/data/track-record.json is a free live 5-day direction record (Oracle 45.96% of 1,425; price rose in 45.8% of windows). Re-download it when our first 20 scored days exist and compare only the S&P 500 rows, as context in the report discussion, never as a target (their horizon is 5 days, ours is 1). Our report.py already uses a base rate and an overlap-safe bootstrap (kb: scout-run2-live-forecast-trackers.md).
 
+8. Later, reads only (15.11, X bookmarks, kb: x-bookmarks-and-financialedux.md): open Harrison Chase "Goal Engineering" and read it against CLAUDE.md rule 3 (name the check first). Anthropic's always-on agents guide (13.11) matches the bot's design, so no code change; the only non-durable timers are Eden's session crons.
+
 Dropped (one line each): PriceSeer arXiv 2601.06088 as evidence (15.11: no baseline, no significance test, leakage unaddressed).
 Dropped (one line each): scoring @gilileoB's calls (15.11): 0 of 7 Substack analyses state a buy/sell/target, only 1 gives a post-date price (Haiku agent, WebFetch summaries, second-hand), and his X trade posts are commentary and videos (3 read). Nothing dated to score.
 Dropped (one line each): review findings 4, 5, 6, 7 of PR #4 (checked against the code, 14.11). Debug key-check step (removed in PR #6).
