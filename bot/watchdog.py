@@ -4,11 +4,25 @@ The daily run starts at 22:37 UTC on trading day D. This check runs the next mor
 call for D must exist, hold probabilities, and match config.json. A non-trading D is skipped.
 """
 import json
+import subprocess
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from bot import market, store
+
+
+def config_at_call(root: Path, path: Path) -> dict:
+    """config.json as committed with the call file (its newest add; calls are write-once), so a config
+    change after the run is not blamed on the call. Falls back to the current config when git can't tell (no repo, or the call isn't committed yet)."""
+    def git(*args):
+        return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True)
+    added = git("log", "--diff-filter=A", "--format=%H", "--", str(path.relative_to(root))).stdout.split()
+    if added:
+        shown = git("show", f"{added[0]}:config.json")
+        if shown.returncode == 0:
+            return json.loads(shown.stdout)
+    return json.loads((Path(root) / "config.json").read_text())
 
 
 def check(root: Path, today: date) -> str | None:
@@ -19,7 +33,7 @@ def check(root: Path, today: date) -> str | None:
     path = store.call_path(root, day)
     if not path.exists():
         return f"no call file for {day}"
-    config = json.loads((Path(root) / "config.json").read_text())
+    config = config_at_call(Path(root), path)
     record = json.loads(path.read_text())
     if not record.get("p_up"):
         return f"call for {day} has no probabilities (status {record.get('status')})"
