@@ -1,6 +1,7 @@
 """v1b (docs/v1b-plan.md, option A): the question becomes 'will X beat SPY tomorrow?'.
 A benchmark is an extra ticker in the bars and in the history. It is never asked about."""
 import unittest
+import unittest.mock
 from datetime import date
 
 from bot.fetch import Bar
@@ -141,6 +142,11 @@ class BenchmarkRun(unittest.TestCase):
         self.assertIn("SPY: ", got["llm"].prompts[0])
         self.assertEqual(sorted(got["call"]["p_up"]), sorted(TICKERS))
         self.assertEqual(sorted(got["call"]["base_rate"]), sorted(TICKERS))
+
+    def test_the_call_records_the_commit_the_run_checked_out(self):
+        with unittest.mock.patch.dict("os.environ", {"GITHUB_SHA": "abc123"}):
+            got = self._run(1000.0)
+        self.assertEqual(got["call"]["run_sha"], "abc123")     # the watchdog reads config.json at this commit
 
     def test_yesterdays_call_is_scored_against_spy(self):
         got = self._run(1500.0)                      # SPY +50% overnight, every stock about +1%

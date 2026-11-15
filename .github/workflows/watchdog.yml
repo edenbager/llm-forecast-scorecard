@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0              # full history (74 commits on 15.11): config.json as of yesterday's run; 50 was too few on a 28-commit day
+          fetch-depth: 0              # the call's run_sha must be in history to diff config.json against it
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

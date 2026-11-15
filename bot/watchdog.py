@@ -12,22 +12,17 @@ from pathlib import Path
 from bot import market, store
 
 
-def config_at(root: Path, when: str) -> dict:
-    """config.json as it stood at `when` (the call's called_at) on the main line, so a config change merged
-    after the run is not blamed on the call. --first-parent: a PR counts from its merge, not its branch
-    commits. Falls back to the current config, with a note, when git can't tell (no repo, no git, or
-    history too shallow)."""
+def config_changed_since(root: Path, sha: str | None) -> bool:
+    """True only when git shows config.json changed after the run's commit; unknown counts as unchanged,
+    so a mismatch is reported rather than excused."""
+    if not sha:
+        return False
     try:
-        sha = subprocess.run(["git", "-C", str(root), "rev-list", "-1", "--first-parent", f"--before={when}", "HEAD"],
-                             capture_output=True, text=True).stdout.strip()
-        shown = subprocess.run(["git", "-C", str(root), "show", f"{sha}:./config.json"],
-                               capture_output=True, text=True) if sha else None
+        diff = subprocess.run(["git", "-C", str(root), "diff", "--quiet", sha, "HEAD", "--", "config.json"],
+                              capture_output=True)
     except OSError:
-        shown = None
-    if shown is not None and shown.returncode == 0:
-        return json.loads(shown.stdout)
-    print(f"watchdog: no git config before {when}; using the current config.json", file=sys.stderr)
-    return json.loads((Path(root) / "config.json").read_text())
+        return False
+    return diff.returncode == 1
 
 
 def check(root: Path, today: date) -> str | None:
@@ -38,13 +33,14 @@ def check(root: Path, today: date) -> str | None:
     path = store.call_path(root, day)
     if not path.exists():
         return f"no call file for {day}"
+    config = json.loads((Path(root) / "config.json").read_text())
     record = json.loads(path.read_text())
-    config = config_at(Path(root), record.get("called_at") or f"{day}T23:59:59+00:00")
     if not record.get("p_up"):
         return f"call for {day} has no probabilities (status {record.get('status')})"
-    if record.get("prompt_version") != config["prompt_version"]:
+    stale = config_changed_since(Path(root), record.get("run_sha"))     # 14.11: config flipped after the run
+    if record.get("prompt_version") != config["prompt_version"] and not stale:
         return f"call for {day} has prompt_version {record.get('prompt_version')}, config says {config['prompt_version']}"
-    if record.get("benchmark") != config.get("benchmark"):
+    if record.get("benchmark") != config.get("benchmark") and not stale:
         return f"call for {day} has benchmark {record.get('benchmark')}, config says {config.get('benchmark')}"
     # The run on day D grades the call of the trading day before: by now it must have score rows.
     earlier = market.previous_trading_day(day)
