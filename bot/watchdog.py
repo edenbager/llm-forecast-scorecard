@@ -27,6 +27,12 @@ def check(root: Path, today: date) -> str | None:
         return f"call for {day} has prompt_version {record.get('prompt_version')}, config says {config['prompt_version']}"
     if record.get("benchmark") != config.get("benchmark"):
         return f"call for {day} has benchmark {record.get('benchmark')}, config says {config.get('benchmark')}"
+    # The run on day D grades the call of the trading day before: by now it must have score rows.
+    earlier = market.previous_trading_day(day)
+    earlier_path = store.call_path(root, earlier)
+    if (earlier_path.exists() and json.loads(earlier_path.read_text()).get("p_up")
+            and earlier.isoformat() not in {row["day"] for row in store.read_scores(root)}):
+        return f"call for {earlier} is not scored"
     return None
 
 
