@@ -144,9 +144,9 @@ class BenchmarkRun(unittest.TestCase):
         self.assertEqual(sorted(got["call"]["base_rate"]), sorted(TICKERS))
 
     def test_the_call_records_the_commit_the_run_checked_out(self):
-        with unittest.mock.patch.dict("os.environ", {"GITHUB_SHA": "abc123"}):
+        with unittest.mock.patch.dict("os.environ", {"GITHUB_SHA": "0123456789abcdef0123456789abcdef01234567"}):
             got = self._run(1000.0)
-        self.assertEqual(got["call"]["run_sha"], "abc123")     # the watchdog reads config.json at this commit
+        self.assertEqual(got["call"]["run_sha"], "0123456789abcdef0123456789abcdef01234567")     # the watchdog reads config.json at this commit
 
     def test_yesterdays_call_is_scored_against_spy(self):
         got = self._run(1500.0)                      # SPY +50% overnight, every stock about +1%
