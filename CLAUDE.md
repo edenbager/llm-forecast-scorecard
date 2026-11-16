@@ -19,6 +19,7 @@ global rules "Never assume: ask" and plan mode already cover it.
 
 ## 3. Goal-driven
 - Name the check before writing code: which test shows it is done. A bug starts with a test that fails.
+- A check (watchdog, validator, gate) starts with two tests: one case it must catch, one it must not. PR #25 went through 3 designs because the second was missing.
 - A task with several steps: list the steps, each with its check, in the plan. In chat the global
   5-line reply limit wins.
 
