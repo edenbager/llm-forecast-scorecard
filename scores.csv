@@ -1,0 +1,11 @@
+day,prompt_version,ticker,p_up,outcome
+2026-11-13,v1,AAPL,0.52,down
+2026-11-13,v1,NVDA,0.45,down
+2026-11-13,v1,MSFT,0.5,down
+2026-11-13,v1,AMZN,0.52,down
+2026-11-13,v1,GOOGL,0.5,down
+2026-11-13,v1,AVGO,0.5,down
+2026-11-13,v1,META,0.5,down
+2026-11-13,v1,LLY,0.52,down
+2026-11-13,v1,TSLA,0.48,down
+2026-11-13,v1,BRK-B,0.52,down
